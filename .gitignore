@@ -1,0 +1,155 @@
+# ─────────────────────────────────────────────
+# Dependencies
+# ─────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─────────────────────────────────────────────
+# Build outputs
+# ─────────────────────────────────────────────
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ─────────────────────────────────────────────
+# Turborepo
+# ─────────────────────────────────────────────
+.turbo/
+
+# ─────────────────────────────────────────────
+# Environment variables
+# NEVER commit .env — only commit .env.*.example
+# ─────────────────────────────────────────────
+.env
+.env.local
+.env.production
+.env.staging
+.env.*.local
+!.env.*.example
+
+# ─────────────────────────────────────────────
+# Drizzle — generated migrations are committed,
+# but local drizzle studio metadata is not
+# ─────────────────────────────────────────────
+drizzle/
+.drizzle/
+
+# ─────────────────────────────────────────────
+# Logs
+# ─────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ─────────────────────────────────────────────
+# Docker local data volumes
+# ─────────────────────────────────────────────
+.docker-volumes/
+postgres-data/
+redis-data/
+dynamodb-data/
+
+# ─────────────────────────────────────────────
+# AWS
+# ─────────────────────────────────────────────
+.aws/
+cdk.out/
+cdk.context.json
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# ─────────────────────────────────────────────
+# Testing
+# ─────────────────────────────────────────────
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+*.snap
+
+# ─────────────────────────────────────────────
+# TypeScript
+# ─────────────────────────────────────────────
+*.js.map
+*.d.ts.map
+
+# ─────────────────────────────────────────────
+# IDEs and editors
+# ─────────────────────────────────────────────
+
+# VS Code — commit extensions.json and launch.json if useful,
+# but not workspace settings that are machine-specific
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# JetBrains (WebStorm, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+\#*\#
+.\#*
+
+# ─────────────────────────────────────────────
+# macOS
+# ─────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# ─────────────────────────────────────────────
+# Windows
+# ─────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encdata
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ─────────────────────────────────────────────
+# Linux
+# ─────────────────────────────────────────────
+*~
+.nfs*
+
+# ─────────────────────────────────────────────
+# React / Vite (apps/web)
+# ─────────────────────────────────────────────
+apps/web/dist/
+apps/web/.vite/
+
+# ─────────────────────────────────────────────
+# Misc
+# ─────────────────────────────────────────────
+*.pem
+*.key
+*.cert
+*.p12
+.cache/
+.temp/
+.tmp/
+tmp/
+temp/

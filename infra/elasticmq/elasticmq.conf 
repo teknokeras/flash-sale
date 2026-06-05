@@ -1,0 +1,45 @@
+include classpath("application.conf")
+
+node-address {
+  protocol = http
+  host = "*"
+  port = 9324
+  context-path = ""
+}
+
+rest-sqs {
+  enabled = true
+  bind-port = 9324
+  bind-hostname = "0.0.0.0"
+  sqs-limits = strict
+}
+
+rest-stats {
+  enabled = true
+  bind-port = 9325
+  bind-hostname = "0.0.0.0"
+}
+
+queues {
+  # FIFO queue for purchase orders
+  # MessageDeduplicationId = user_id#sale_id prevents double-processing
+  "purchases.fifo" {
+    defaultVisibilityTimeout = 30 seconds
+    delay = 0 seconds
+    receiveMessageWait = 0 seconds
+    deadLettersQueue {
+      name = "purchases-dlq.fifo"
+      maxReceiveCount = 3
+    }
+    fifo = true
+    contentBasedDeduplication = false
+  }
+
+  # Dead letter queue for failed purchase jobs
+  "purchases-dlq.fifo" {
+    defaultVisibilityTimeout = 30 seconds
+    delay = 0 seconds
+    receiveMessageWait = 0 seconds
+    fifo = true
+  }
+}
