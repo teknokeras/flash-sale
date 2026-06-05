@@ -6,13 +6,14 @@ import { authRoutes } from "./routes/auth.js";
 import { adminSalesRoutes } from "./routes/sales.js";
 import { adminItemsRoutes } from "./routes/items.js";
 
-const JWT_SECRET = process.env["JWT_SECRET"];
-const REDIS_URL = process.env["REDIS_URL"];
-
-if (!JWT_SECRET) throw new Error("JWT_SECRET is required");
-if (!REDIS_URL) throw new Error("REDIS_URL is required");
-
 export function buildApp() {
+    // Validate env vars inside the function so TypeScript narrows the type
+    const JWT_SECRET = process.env["JWT_SECRET"];
+    const REDIS_URL = process.env["REDIS_URL"];
+
+    if (!JWT_SECRET) throw new Error("JWT_SECRET is required");
+    if (!REDIS_URL) throw new Error("REDIS_URL is required");
+
     const app = Fastify({
         logger: {
             level: process.env["LOG_LEVEL"] ?? "info",
@@ -23,6 +24,7 @@ export function buildApp() {
     });
 
     app.register(fastifySensible);
+    // After the throw-guards above, TypeScript now knows these are `string`, not `string | undefined`
     app.register(fastifyJwt, { secret: JWT_SECRET });
     app.register(fastifyRedis, { url: REDIS_URL });
 
