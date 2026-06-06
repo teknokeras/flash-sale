@@ -23,6 +23,7 @@
         "tsx": "^4.7.0",
         "typescript": "^5.4.0",
         "@types/node": "^20.0.0",
-        "@types/node-cron": "^3.0.11"
+        "@types/node-cron": "^3.0.11",
+        "pino-pretty": "^11.0.0"
     }
 }

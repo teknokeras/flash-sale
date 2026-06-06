@@ -23,6 +23,7 @@
         "tsx": "^4.7.0",
         "typescript": "^5.4.0",
         "@types/node": "^20.0.0",
-        "@types/bcryptjs": "^2.4.6"
+        "@types/bcryptjs": "^2.4.6",
+        "pino-pretty": "^11.0.0"
     }
 }

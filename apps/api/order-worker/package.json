@@ -11,7 +11,8 @@
     "dependencies": {
         "@flash-sale/db": "workspace:*",
         "@aws-sdk/client-sqs": "^3.0.0",
-        "pino": "^8.19.0"
+        "pino": "^8.19.0",
+        "pino-pretty": "^11.0.0"
     },
     "devDependencies": {
         "tsx": "^4.7.0",
