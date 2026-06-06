@@ -21,8 +21,6 @@ rest-stats {
 }
 
 queues {
-  # FIFO queue for purchase orders
-  # MessageDeduplicationId = user_id#sale_id prevents double-processing
   "purchases.fifo" {
     defaultVisibilityTimeout = 30 seconds
     delay = 0 seconds
@@ -35,7 +33,6 @@ queues {
     contentBasedDeduplication = false
   }
 
-  # Dead letter queue for failed purchase jobs
   "purchases-dlq.fifo" {
     defaultVisibilityTimeout = 30 seconds
     delay = 0 seconds

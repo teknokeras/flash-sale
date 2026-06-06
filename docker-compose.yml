@@ -143,8 +143,8 @@ services:
   # ─────────────────────────────────────────────
   sale-service:
     build:
-      context: ./apps/api/sale-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/sale-service/Dockerfile
       target: development
     container_name: flashsale-sale-service
     restart: unless-stopped
@@ -180,8 +180,8 @@ services:
   # ─────────────────────────────────────────────
   purchase-service:
     build:
-      context: ./apps/api/purchase-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/sale-service/Dockerfile
       target: development
     container_name: flashsale-purchase-service
     restart: unless-stopped
@@ -232,8 +232,8 @@ services:
   # ─────────────────────────────────────────────
   admin-service:
     build:
-      context: ./apps/api/admin-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/sale-service/Dockerfile
       target: development
     container_name: flashsale-admin-service
     restart: unless-stopped
@@ -271,8 +271,8 @@ services:
   # ─────────────────────────────────────────────
   order-worker:
     build:
-      context: ./apps/api/order-worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/sale-service/Dockerfile
       target: development
     container_name: flashsale-order-worker
     restart: unless-stopped
@@ -298,7 +298,7 @@ services:
 
   # ─────────────────────────────────────────────
   # React frontend — Vite dev server
-  # ─────────────────────────────────────────────
+  # ─────────────────────────────────────────────. 
   # web:
   #   build:
   #     context: ./apps/web
