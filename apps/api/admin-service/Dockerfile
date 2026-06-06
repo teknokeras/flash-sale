@@ -5,21 +5,21 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy workspace manifests first (better layer caching)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/db/package.json ./packages/db/
 COPY apps/api/admin-service/package.json ./apps/api/admin-service/
 
-RUN pnpm install
+RUN pnpm install --shamefully-hoist
 
-# Copy source
 COPY packages/db ./packages/db
 COPY apps/api/admin-service ./apps/api/admin-service
 COPY tsconfig.base.json ./
 
+RUN pnpm --filter @flash-sale/db build
+
 WORKDIR /app/apps/api/admin-service
 
-EXPOSE 3001
+EXPOSE 3003
 
 CMD ["pnpm", "dev"]
 
@@ -58,7 +58,7 @@ COPY --from=builder /app/apps/api/admin-service/dist ./apps/api/admin-service/di
 
 WORKDIR /app/apps/api/admin-service
 
-EXPOSE 3001
+EXPOSE 3003
 
 USER node
 

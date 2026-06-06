@@ -10,12 +10,14 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/db/package.json ./packages/db/
 COPY apps/api/sale-service/package.json ./apps/api/sale-service/
 
-RUN pnpm install
+RUN pnpm install --shamefully-hoist
 
 # Copy source
 COPY packages/db ./packages/db
 COPY apps/api/sale-service ./apps/api/sale-service
 COPY tsconfig.base.json ./
+
+RUN pnpm --filter @flash-sale/db build
 
 WORKDIR /app/apps/api/sale-service
 

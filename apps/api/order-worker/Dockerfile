@@ -5,21 +5,19 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy workspace manifests first (better layer caching)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/db/package.json ./packages/db/
-COPY apps/api/order-service/package.json ./apps/api/order-service/
+COPY apps/api/order-worker/package.json ./apps/api/order-worker/
 
-RUN pnpm install
+RUN pnpm install --shamefully-hoist
 
-# Copy source
 COPY packages/db ./packages/db
-COPY apps/api/order-service ./apps/api/order-service
+COPY apps/api/order-worker ./apps/api/order-worker
 COPY tsconfig.base.json ./
 
-WORKDIR /app/apps/api/order-service
+RUN pnpm --filter @flash-sale/db build
 
-EXPOSE 3001
+WORKDIR /app/apps/api/order-worker
 
 CMD ["pnpm", "dev"]
 
@@ -31,16 +29,16 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/db/package.json ./packages/db/
-COPY apps/api/order-service/package.json ./apps/api/order-service/
+COPY apps/api/order-worker/package.json ./apps/api/order-worker/
 
 RUN pnpm install --frozen-lockfile
 
 COPY packages/db ./packages/db
-COPY apps/api/order-service ./apps/api/order-service
+COPY apps/api/order-worker ./apps/api/order-worker
 COPY tsconfig.base.json ./
 
 RUN pnpm --filter @flash-sale/db build
-RUN pnpm --filter @flash-sale/order-service build
+RUN pnpm --filter @flash-sale/order-worker build
 
 FROM node:20-alpine AS production
 
@@ -49,16 +47,14 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml ./
 COPY packages/db/package.json ./packages/db/
-COPY apps/api/order-service/package.json ./apps/api/order-service/
+COPY apps/api/order-worker/package.json ./apps/api/order-worker/
 
 RUN pnpm install --prod --frozen-lockfile
 
 COPY --from=builder /app/packages/db/dist ./packages/db/dist
-COPY --from=builder /app/apps/api/order-service/dist ./apps/api/order-service/dist
+COPY --from=builder /app/apps/api/order-worker/dist ./apps/api/order-worker/dist
 
-WORKDIR /app/apps/api/order-service
-
-EXPOSE 3001
+WORKDIR /app/apps/api/order-worker
 
 USER node
 
