@@ -8,16 +8,16 @@ WORKDIR /app
 # Copy workspace manifests first (better layer caching)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/db/package.json ./packages/db/
-COPY apps/api/purchase-service/package.json ./apps/api/purchase-service/
+COPY apps/api/sale-service/package.json ./apps/api/sale-service/
 
 RUN pnpm install
 
 # Copy source
 COPY packages/db ./packages/db
-COPY apps/api/purchase-service ./apps/api/purchase-service
+COPY apps/api/sale-service ./apps/api/sale-service
 COPY tsconfig.base.json ./
 
-WORKDIR /app/apps/api/purchase-service
+WORKDIR /app/apps/api/sale-service
 
 EXPOSE 3001
 
@@ -31,16 +31,16 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/db/package.json ./packages/db/
-COPY apps/api/purchase-service/package.json ./apps/api/purchase-service/
+COPY apps/api/sale-service/package.json ./apps/api/sale-service/
 
 RUN pnpm install --frozen-lockfile
 
 COPY packages/db ./packages/db
-COPY apps/api/purchase-service ./apps/api/purchase-service
+COPY apps/api/sale-service ./apps/api/sale-service
 COPY tsconfig.base.json ./
 
 RUN pnpm --filter @flash-sale/db build
-RUN pnpm --filter @flash-sale/purchase-service build
+RUN pnpm --filter @flash-sale/sale-service build
 
 FROM node:20-alpine AS production
 
@@ -49,14 +49,14 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml ./
 COPY packages/db/package.json ./packages/db/
-COPY apps/api/purchase-service/package.json ./apps/api/purchase-service/
+COPY apps/api/sale-service/package.json ./apps/api/sale-service/
 
 RUN pnpm install --prod --frozen-lockfile
 
 COPY --from=builder /app/packages/db/dist ./packages/db/dist
-COPY --from=builder /app/apps/api/purchase-service/dist ./apps/api/purchase-service/dist
+COPY --from=builder /app/apps/api/sale-service/dist ./apps/api/sale-service/dist
 
-WORKDIR /app/apps/api/purchase-service
+WORKDIR /app/apps/api/sale-service
 
 EXPOSE 3001
 

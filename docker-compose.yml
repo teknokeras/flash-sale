@@ -299,27 +299,27 @@ services:
   # ─────────────────────────────────────────────
   # React frontend — Vite dev server
   # ─────────────────────────────────────────────
-  web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-      target: development
-    container_name: flashsale-web
-    restart: unless-stopped
-    depends_on:
-      - sale-service
-      - purchase-service
-    environment:
-      VITE_SALE_API_URL: http://localhost:3001
-      VITE_PURCHASE_API_URL: http://localhost:3002
-      VITE_ADMIN_API_URL: http://localhost:3003
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./apps/web:/app
-      - /app/node_modules
-    networks:
-      - flashsale-net
+  # web:
+  #   build:
+  #     context: ./apps/web
+  #     dockerfile: Dockerfile
+  #     target: development
+  #   container_name: flashsale-web
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - sale-service
+  #     - purchase-service
+  #   environment:
+  #     VITE_SALE_API_URL: http://localhost:3001
+  #     VITE_PURCHASE_API_URL: http://localhost:3002
+  #     VITE_ADMIN_API_URL: http://localhost:3003
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - ./apps/web:/app
+  #     - /app/node_modules
+  #   networks:
+  #     - flashsale-net
 
 # ─────────────────────────────────────────────
 # Named volumes — persist data across restarts

@@ -35,6 +35,9 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+      drizzle-orm:
+        specifier: ^0.30.0
+        version: 0.30.10(postgres@3.4.9)
       fastify:
         specifier: ^4.27.0
         version: 4.29.1
@@ -103,6 +106,9 @@ importers:
       '@flash-sale/db':
         specifier: workspace:*
         version: link:../../../packages/db
+      drizzle-orm:
+        specifier: ^0.30.0
+        version: 0.30.10(postgres@3.4.9)
       fastify:
         specifier: ^4.27.0
         version: 4.29.1
@@ -137,6 +143,9 @@ importers:
       '@flash-sale/db':
         specifier: workspace:*
         version: link:../../../packages/db
+      drizzle-orm:
+        specifier: ^0.30.0
+        version: 0.30.10(postgres@3.4.9)
       fastify:
         specifier: ^4.27.0
         version: 4.29.1
