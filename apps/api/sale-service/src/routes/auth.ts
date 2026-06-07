@@ -3,7 +3,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { db } from '@flash-sale/db'
-import { users } from '@flash-sale/db/schema'
+import { users } from '@flash-sale/db'
 import { eq } from 'drizzle-orm'
 
 const registerSchema = z.object({
@@ -19,7 +19,7 @@ const loginSchema = z.object({
 
 export async function authRoutes(app: FastifyInstance) {
     // POST /auth/register
-    app.post('/auth/register', async (req, reply) => {
+    app.post('/register', async (req, reply) => {
         const body = registerSchema.safeParse(req.body)
         if (!body.success) {
             return reply.status(400).send({ error: 'Invalid input', details: body.error.flatten() })
@@ -49,7 +49,7 @@ export async function authRoutes(app: FastifyInstance) {
     })
 
     // POST /auth/login
-    app.post('/auth/login', async (req, reply) => {
+    app.post('/login', async (req, reply) => {
         const body = loginSchema.safeParse(req.body)
         if (!body.success) {
             return reply.status(400).send({ error: 'Invalid input' })

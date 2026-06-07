@@ -299,6 +299,8 @@ services:
       - sale-service
       - purchase-service
       - admin-service
+    networks:
+      - flashsale-net
 
 volumes:
   postgres_data:

@@ -11,6 +11,10 @@
             "types": "./dist/index.d.ts"
         }
     },
+    "./schema": {
+        "import": "./dist/schema.js",
+        "types": "./dist/schema.d.ts"
+    },
     "scripts": {
         "build": "tsc",
         "db:generate": "drizzle-kit generate",

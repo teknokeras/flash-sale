@@ -1,6 +1,12 @@
 {
     "name": "flash-sale",
     "private": true,
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "esbuild",
+            "es5-ext"
+        ]
+    },
     "scripts": {
         "dev": "turbo run dev",
         "build": "turbo run build",
