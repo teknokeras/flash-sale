@@ -10,18 +10,20 @@ interface SalesTabProps {
 
 export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
     const { data: sales = [] } = useQuery({ queryKey: ['admin-sales'], queryFn: adminApi.getSales })
-    const { data: items = [] } = useQuery({ queryKey: ['admin-items'], queryFn: adminApi.getAvailableItems }) // 👈 OPTIMIZATION: Switched to fetch available items directly
+    const { data: items = [] } = useQuery({ queryKey: ['admin-items'], queryFn: adminApi.getAvailableItems })
 
     const [form, setForm] = useState({ title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' })
     const [errors, setErrors] = useState({ title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' })
     const [msg, setMsg] = useState<string | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
 
+    const selectedItem = items.find((item: Item) => item.id?.toString() === form.itemId?.toString())
+
     const handleChange = (field: keyof typeof form, value: string) => {
         setForm(f => ({ ...f, [field]: value }))
-        if (value.trim() !== '') {
-            setErrors(e => ({ ...e, [field]: '' }))
-        }
+
+        // Wipe target errors out immediately as they type
+        setErrors(e => ({ ...e, [field]: '' }))
     }
 
     const { mutateAsync: attachItem } = useMutation({
@@ -35,7 +37,7 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
             title: form.title,
             specialPrice: Math.round(parseFloat(form.specialPrice) * 100),
             initialQuantity: parseInt(form.initialQuantity, 10),
-            startsAt: new Date(form.startsAt).toISOString(), // 👈 Safely matches the ISO structure
+            startsAt: new Date(form.startsAt).toISOString(),
             endsAt: new Date(form.endsAt).toISOString()
         }),
         onSuccess: async (newSale: any) => {
@@ -64,33 +66,42 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
 
     const submitUnifiedForm = () => {
         const newErrors = { title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' }
-        let hasEmptyFields = false
+        let hasValidationErrors = false
 
-        if (!form.title.trim()) { newErrors.title = 'Flash Sale Title is mandatory.'; hasEmptyFields = true; }
-        if (!form.itemId.trim()) { newErrors.itemId = 'Selecting an item is mandatory.'; hasEmptyFields = true; }
-        if (!form.startsAt.trim()) { newErrors.startsAt = 'Start time is mandatory.'; hasEmptyFields = true; }
-        if (!form.endsAt.trim()) { newErrors.endsAt = 'End time is mandatory.'; hasEmptyFields = true; }
-        if (!form.specialPrice.trim()) { newErrors.specialPrice = 'Promo price is mandatory.'; hasEmptyFields = true; }
+        if (!form.title.trim()) { newErrors.title = 'Flash Sale Title is mandatory.'; hasValidationErrors = true; }
+        if (!form.itemId.trim()) { newErrors.itemId = 'Selecting an item is mandatory.'; hasValidationErrors = true; }
+        if (!form.startsAt.trim()) { newErrors.startsAt = 'Start time is mandatory.'; hasValidationErrors = true; }
+        if (!form.endsAt.trim()) { newErrors.endsAt = 'End time is mandatory.'; hasValidationErrors = true; }
+        if (!form.specialPrice.trim()) { newErrors.specialPrice = 'Promo price is mandatory.'; hasValidationErrors = true; }
 
         if (!form.initialQuantity.trim()) {
             newErrors.initialQuantity = 'Sale allocation quantity is mandatory.';
-            hasEmptyFields = true;
+            hasValidationErrors = true;
         } else if (isNaN(Number(form.initialQuantity)) || Number(form.initialQuantity) <= 0) {
             newErrors.initialQuantity = 'Please specify a target value greater than 0.';
-            hasEmptyFields = true;
+            hasValidationErrors = true;
         }
 
-        if (hasEmptyFields) {
+        // ── CORE PRICE THRESHOLD VALIDATION BLOCK ──
+        if (selectedItem && form.specialPrice.trim()) {
+            const inputPriceInCents = Math.round(parseFloat(form.specialPrice))
+            if (inputPriceInCents >= selectedItem.priceCents) {
+                const originalPriceFormatted = (selectedItem.priceCents / 100).toFixed(2)
+                newErrors.specialPrice = `Promo price must be strictly less than the original item price ($${originalPriceFormatted}).`
+                hasValidationErrors = true
+            }
+        }
+
+        if (hasValidationErrors) {
             setErrors(newErrors)
             return
         }
 
-        // ── FIX: Explicit parsing guarantees timezone alignment ──
         const startTimestamp = new Date(form.startsAt).getTime()
         const endTimestamp = new Date(form.endsAt).getTime()
         const nowTimestamp = Date.now()
 
-        const minAllowedStart = nowTimestamp + 14 * 60 * 1000 // Added 1-minute buffer to accommodate client submission latency
+        const minAllowedStart = nowTimestamp + 14 * 60 * 1000
 
         if (startTimestamp < minAllowedStart) {
             setMsg('Error: Sale start time must be at least 15 minutes from now.')
@@ -133,10 +144,13 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
             <div style={s.formRow}>
                 <label style={s.label}>Item with Available Stock</label>
                 <select style={{ ...s.input, borderColor: errors.itemId ? '#dc2626' : '#e5e7eb' }} value={form.itemId}
-                    onChange={e => handleChange('itemId', e.target.value)}>
+                    onChange={e => {
+                        handleChange('itemId', e.target.value)
+                        setErrors(err => ({ ...err, specialPrice: '' }))
+                    }}>
                     <option value="">— pick available item —</option>
                     {items.map((item: Item) => (
-                        <option key={item.id} value={item.id}>
+                        <option key={item.id} value={item.id?.toString()}>
                             {item.name} (${(item.priceCents / 100).toFixed(2)})
                         </option>
                     ))}
@@ -145,7 +159,7 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
             </div>
 
             <div style={s.formRow}>
-                <label style={s.label}>Promo Sale Price ($)</label>
+                <label style={s.label}>Promo Sale Price (in cents $)</label>
                 <input
                     style={{ ...s.input, borderColor: errors.specialPrice ? '#dc2626' : '#e5e7eb' }}
                     type="number"
@@ -156,6 +170,11 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
                     onChange={e => handleChange('specialPrice', e.target.value)}
                 />
                 {errors.specialPrice && <span style={fieldErrorStyle}>{errors.specialPrice}</span>}
+                {selectedItem && !errors.specialPrice && (
+                    <span style={{ display: 'block', fontSize: '11px', color: '#4b5563', marginTop: '4px' }}>
+                        * Maximum allowable promo price: <strong>${((selectedItem.priceCents - 1) / 100).toFixed(2)}</strong>
+                    </span>
+                )}
             </div>
 
             <div style={s.formRow}>
