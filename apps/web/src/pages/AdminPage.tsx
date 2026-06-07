@@ -50,7 +50,15 @@ export default function AdminPage() {
                 <button style={s.logoutBtn} onClick={logout}>Logout</button>
             </div>
             <div style={s.main}>
-                {tab === 'sales' && <SalesTab qc={qc} onSelectSale={setSelectedSaleId} />}
+                {tab === 'sales' && (
+                    <SalesTab
+                        qc={qc}
+                        onSelectSale={(id) => {
+                            setSelectedSaleId(id);
+                            setTab('orders'); // Jump right to the tab layout seamlessly
+                        }}
+                    />
+                )}
                 {tab === 'items' && <ItemsTab qc={qc} />}
                 {tab === 'orders' && <OrdersTab selectedSaleId={selectedSaleId} />}
             </div>
@@ -64,25 +72,52 @@ function SalesTab({ qc, onSelectSale }: { qc: any; onSelectSale: (id: string) =>
     const { data: sales = [] } = useQuery({ queryKey: ['admin-sales'], queryFn: adminApi.getSales })
     const { data: items = [] } = useQuery({ queryKey: ['admin-items'], queryFn: adminApi.getItems })
 
-    const [form, setForm] = useState({ startsAt: '', endsAt: '' })
+    const [form, setForm] = useState({ title: '', startsAt: '', endsAt: '' })
     const [attachForm, setAttachForm] = useState<{ saleId: string; itemId: string }>({ saleId: '', itemId: '' })
     const [msg, setMsg] = useState<string | null>(null)
 
     const { mutate: createSale } = useMutation({
-        mutationFn: () => adminApi.createSale(form),
-        onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-sales'] }); setMsg('Sale created!') },
-        onError: (e: any) => setMsg(e.error ?? 'Error'),
+        mutationFn: () => adminApi.createSale({
+            title: form.title,
+            startsAt: new Date(form.startsAt).toISOString(),
+            endsAt: new Date(form.endsAt).toISOString()
+        }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['admin-sales'] });
+            setMsg('Sale created!');
+            setForm({ title: '', startsAt: '', endsAt: '' });
+        },
+        onError: (e: any) => setMsg(e.response?.data?.message ?? e.error ?? 'Error creating sale'),
     })
 
     const { mutate: attachItem } = useMutation({
         mutationFn: () => adminApi.attachItem(attachForm.saleId, attachForm.itemId),
-        onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-sales'] }); setMsg('Item attached!') },
-        onError: (e: any) => setMsg(e.error ?? 'Error'),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['admin-sales'] });
+            setMsg('Item attached!');
+            setAttachForm({ saleId: '', itemId: '' });
+        },
+        onError: (e: any) => setMsg(e.response?.data?.message ?? e.error ?? 'Error attaching item'),
+    })
+
+    // ── Added Deletion Mutation Hook ──
+    const { mutate: deleteSale } = useMutation({
+        mutationFn: (id: string) => adminApi.deleteSale(id), // Assumes adminApi.deleteSale(id) is wired up
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['admin-sales'] });
+            setMsg('Sale deleted successfully.');
+        },
+        onError: (e: any) => setMsg(e.response?.data?.message ?? e.error ?? 'Error deleting sale'),
     })
 
     return (
         <div>
             <h2 style={s.h2}>Create Sale</h2>
+            <div style={s.formRow}>
+                <label style={s.label}>Sale Title</label>
+                <input style={s.input} type="text" placeholder="e.g., Summer Flash Sale 2026" value={form.title}
+                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            </div>
             <div style={s.formRow}>
                 <label style={s.label}>Start</label>
                 <input style={s.input} type="datetime-local" value={form.startsAt}
@@ -103,7 +138,7 @@ function SalesTab({ qc, onSelectSale }: { qc: any; onSelectSale: (id: string) =>
                     <option value="">— pick sale —</option>
                     {sales.map((sale: Sale) => (
                         <option key={sale.id} value={sale.id}>
-                            {sale.id.slice(0, 8)}… ({sale.status})
+                            {sale.title || sale.id.slice(0, 8)}… ({sale.status})
                         </option>
                     ))}
                 </select>
@@ -125,21 +160,45 @@ function SalesTab({ qc, onSelectSale }: { qc: any; onSelectSale: (id: string) =>
             <h2 style={{ ...s.h2, marginTop: 32 }}>All Sales</h2>
             <table style={s.table}>
                 <thead>
-                    <tr>{['ID', 'Status', 'Starts', 'Ends', 'Item', 'Orders'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
+                    <tr>{['Title', 'Status', 'Starts', 'Ends', 'Item', 'Actions'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
-                    {sales.map((sale: Sale) => (
-                        <tr key={sale.id}>
-                            <td style={s.td}>{sale.id.slice(0, 8)}…</td>
-                            <td style={s.td}><span style={{ ...s.badge, background: badgeColor(sale.status) }}>{sale.status}</span></td>
-                            <td style={s.td}>{new Date(sale.startsAt).toLocaleString()}</td>
-                            <td style={s.td}>{new Date(sale.endsAt).toLocaleString()}</td>
-                            <td style={s.td}>{(sale as any).item?.name ?? '—'}</td>
-                            <td style={s.td}>
-                                <button style={s.linkBtn} onClick={() => onSelectSale(sale.id)}>View orders</button>
-                            </td>
-                        </tr>
-                    ))}
+                    {sales.map((sale: Sale) => {
+                        const now = new Date().getTime()
+                        const start = new Date(sale.startsAt).getTime()
+                        const end = new Date(sale.endsAt).getTime()
+
+                        // Rule: Allowed to delete if it hasn't started yet OR if it has completely ended
+                        const isDeletable = now < start || now > end;
+
+                        return (
+                            <tr key={sale.id}>
+                                <td style={s.td}>{sale.title || sale.id.slice(0, 8)}</td>
+                                <td style={s.td}><span style={{ ...s.badge, background: badgeColor(sale.status) }}>{sale.status}</span></td>
+                                <td style={s.td}>{new Date(sale.startsAt).toLocaleString()}</td>
+                                <td style={s.td}>{new Date(sale.endsAt).toLocaleString()}</td>
+                                <td style={s.td}>{(sale as any).item?.name ?? '—'}</td>
+                                <td style={{ ...s.td, display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <button style={s.linkBtn} onClick={() => onSelectSale(sale.id)}>View orders</button>
+
+                                    {isDeletable ? (
+                                        <button
+                                            style={s.deleteBtn}
+                                            onClick={() => {
+                                                if (confirm(`Are you sure you want to delete "${sale.title || sale.id.slice(0, 8)}"?`)) {
+                                                    deleteSale(sale.id)
+                                                }
+                                            }}
+                                        >
+                                            Delete
+                                        </button>
+                                    ) : (
+                                        <span style={s.disabledText} title="Active sales cannot be deleted">Locked</span>
+                                    )}
+                                </td>
+                            </tr>
+                        )
+                    })}
                 </tbody>
             </table>
         </div>
@@ -222,7 +281,7 @@ function OrdersTab({ selectedSaleId }: { selectedSaleId: string | null }) {
                     <option value="">— pick sale —</option>
                     {sales.map((sale: Sale) => (
                         <option key={sale.id} value={sale.id}>
-                            {sale.id.slice(0, 8)}… ({sale.status})
+                            {sale.title || sale.id.slice(0, 8)}… ({sale.status})
                         </option>
                     ))}
                 </select>
@@ -276,4 +335,7 @@ const s: Record<string, React.CSSProperties> = {
     td: { padding: '10px 12px', borderBottom: '1px solid #f3f4f6', color: '#111827' },
     badge: { display: 'inline-block', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 600 },
     linkBtn: { background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: 14, padding: 0, textDecoration: 'underline' },
+    // ── Added style elements ──
+    deleteBtn: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, padding: 0, textDecoration: 'underline' },
+    disabledText: { color: '#9ca3af', fontSize: 14, cursor: 'not-allowed', fontStyle: 'italic' }
 }

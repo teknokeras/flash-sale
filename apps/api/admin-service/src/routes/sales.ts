@@ -134,4 +134,22 @@ export async function adminSalesRoutes(app: FastifyInstance) {
 
         return reply.send(sale);
     });
+    app.delete<{ Params: { id: string } }>("/:id", adminGuard, async (request, reply) => {
+        const { id } = request.params;
+        const now = new Date();
+
+        const [sale] = await db
+            .select()
+            .from(flashSales)
+            .where(eq(flashSales.id, id));
+
+        if (!sale) return reply.notFound("Sale not found");
+
+        if (now >= new Date(sale.startsAt) && now <= new Date(sale.endsAt)) {
+            return reply.badRequest("Cannot delete an ongoing active flash sale.");
+        }
+
+        await db.delete(flashSales).where(eq(flashSales.id, id));
+        return reply.send({ success: true, message: "Sale deleted successfully" });
+    });
 }

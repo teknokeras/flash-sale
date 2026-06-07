@@ -25,14 +25,18 @@ function authHeaders(): HeadersInit {
 }
 
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
+    // Determine if we should send the Content-Type header based on whether there's a body
+    const hasBody = init && init.body;
+
     const res = await fetch(url, {
         ...init,
         headers: {
-            'Content-Type': 'application/json',
+            ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
             ...authHeaders(),
             ...init?.headers,
         },
     })
+
     const data = await res.json()
     if (!res.ok) throw { status: res.status, ...data }
     return data as T
@@ -41,7 +45,21 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 // ── Sale Service ─────────────────────────────────────────────
 
 export const saleApi = {
-    getActive: () => apiFetch<Sale>('/api/sale/sales/active'),
+    getActive: async (): Promise<Sale> => {
+        const raw = await apiFetch<any>('/api/sale/sales/active')
+        // Normalize backend shape { active, sale, item } → Sale
+        if (raw && raw.sale) {
+            return {
+                id: raw.sale.id,
+                startsAt: raw.sale.startsAt,
+                endsAt: raw.sale.endsAt,
+                status: raw.active ? 'active' : 'ended',
+                item: raw.item ?? undefined,
+                remainingQuantity: raw.sale.remainingQty ?? raw.sale.remainingQuantity,
+            }
+        }
+        return raw as Sale
+    },
     getSale: (id: string) => apiFetch<Sale>(`/api/sale/sales/${id}`),
     register: (body: { email: string; password: string; name: string }) =>
         apiFetch<{ token: string; user: User }>('/api/sale/auth/register', {
@@ -87,6 +105,10 @@ export const adminApi = {
             body: JSON.stringify({ itemId }),
         }),
     getOrders: (saleId: string) => apiFetch<Order[]>(`/api/admin/admin/sales/${saleId}/orders`),
+    deleteSale: (id: string) =>
+        apiFetch<{ success: boolean; message: string }>(`/api/admin/admin/sales/${id}`, {
+            method: 'DELETE'
+        }),
 }
 
 // ── Types ─────────────────────────────────────────────────────

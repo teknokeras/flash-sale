@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { saleApi, purchaseApi } from '../lib/api'
+import { saleApi, purchaseApi, Sale } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { useCountdown } from '../hooks/useCountdown'
 import { useState } from 'react'
@@ -8,17 +8,24 @@ export default function SalePage() {
     const { isLoggedIn, role } = useAuth()
     const qc = useQueryClient()
 
-    const { data: sale, isLoading, error } = useQuery({
+    // 1. Fetch data from active-sale endpoint
+    const { data: rawSale, isLoading, error } = useQuery({
         queryKey: ['active-sale'],
         queryFn: saleApi.getActive,
         refetchInterval: 3000,
         retry: false,
     })
 
-    const countdown = useCountdown(
-        sale?.status === 'upcoming' ? sale.startsAt :
-            sale?.status === 'active' ? sale.endsAt : null
-    )
+    // 2. Normalize potential variations in payload wrapping (Array vs Object envelope)
+    const sale: Sale | undefined = Array.isArray(rawSale)
+        ? rawSale[0]
+        : (rawSale && (rawSale as any).data)
+            ? (rawSale as any).data
+            : rawSale as Sale | undefined;
+
+    // 3. Fallback date targets
+    const targetDate = sale?.startsAt || sale?.endsAt ? (sale.status === 'upcoming' ? sale.startsAt : sale.endsAt) : null;
+    const countdown = useCountdown(targetDate)
 
     const [purchaseMsg, setPurchaseMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -39,32 +46,40 @@ export default function SalePage() {
     })
 
     if (isLoading) return <div style={s.center}>Loading sale...</div>
-    if (error || !sale) return <div style={s.center}>No active sale right now. Check back soon!</div>
 
-    const fmt = (n: number) => String(n).padStart(2, '0')
-    const price = sale.item ? `$${(sale.item.priceCents / 100).toFixed(2)}` : '—'
+    // ── FIXED: Relaxed safety guard check ──
+    // If we have an ID, we have a valid sale entry to show, even if relations are lazy-loaded
+    if (error || !sale || !sale.id) {
+        return <div style={s.center}>No active sale right now. Check back soon!</div>
+    }
+
+    const price = sale.item ? `$${(sale.item.priceCents / 100).toFixed(2)}` : null
+    const displayStatus = (sale.status || 'ACTIVE').toUpperCase()
 
     return (
         <div style={s.page}>
             <div style={s.card}>
                 {/* Status badge */}
                 <div style={{ ...s.badge, background: badgeColor(sale.status) }}>
-                    {sale.status.toUpperCase()}
+                    {displayStatus}
                 </div>
 
-                {/* Item info */}
+                {/* Item / Sale Title Render Info Block */}
                 {sale.item ? (
                     <>
                         <h1 style={s.title}>{sale.item.name}</h1>
                         <p style={s.desc}>{sale.item.description}</p>
-                        <div style={s.price}>{price}</div>
+                        {price && <div style={s.price}>{price}</div>}
                     </>
                 ) : (
-                    <h1 style={s.title}>Flash Sale</h1>
+                    <>
+                        <h1 style={s.title}>{(sale as any).title || 'Flash Sale Event'}</h1>
+                        <p style={s.desc}>Item information is being finalized. Get ready!</p>
+                    </>
                 )}
 
-                {/* Countdown */}
-                {!countdown.isOver && (
+                {/* Countdown display logic */}
+                {!countdown.isOver && targetDate && (
                     <div style={s.countdownBox}>
                         <div style={s.countdownLabel}>
                             {sale.status === 'upcoming' ? 'Starts in' : 'Ends in'}
@@ -78,15 +93,15 @@ export default function SalePage() {
                     </div>
                 )}
 
-                {/* Inventory */}
-                {sale.remainingQuantity !== undefined && (
+                {/* Inventory tracking */}
+                {sale.remainingQuantity !== undefined && sale.remainingQuantity !== null && (
                     <div style={s.qty}>
-                        {sale.remainingQuantity} left
+                        {sale.remainingQuantity} units left
                     </div>
                 )}
 
-                {/* Buy button */}
-                {sale.status === 'active' && (
+                {/* Conditional checkout button rendering matching base payload flags */}
+                {(sale.status === 'active' || !sale.status) && sale.item && (
                     <>
                         {!isLoggedIn || role !== 'buyer' ? (
                             <p style={s.hint}>
@@ -119,15 +134,15 @@ function Unit({ n, label }: { n: number; label: string }) {
     return (
         <div style={{ textAlign: 'center', margin: '0 6px' }}>
             <div style={{ fontSize: 36, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                {String(n).padStart(2, '0')}
+                {String(n ?? 0).padStart(2, '0')}
             </div>
             <div style={{ fontSize: 12, color: '#6b7280' }}>{label}</div>
         </div>
     )
 }
 
-function badgeColor(status: string) {
-    return status === 'active' ? '#10b981' : status === 'upcoming' ? '#f59e0b' : '#6b7280'
+function badgeColor(status?: string) {
+    return status === 'active' ? '#10b981' : (status === 'upcoming' || status === 'scheduled') ? '#f59e0b' : '#10b981'
 }
 
 const s: Record<string, React.CSSProperties> = {
