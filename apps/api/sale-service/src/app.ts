@@ -3,6 +3,7 @@ import fastifyJwt from "@fastify/jwt";
 import fastifyRedis from "@fastify/redis";
 import fastifySensible from "@fastify/sensible";
 import { salesRoutes } from "./routes/sales.js";
+import { authRoutes } from './routes/auth.js'
 
 const JWT_SECRET = process.env["JWT_SECRET"];
 const REDIS_URL = process.env["REDIS_URL"];
@@ -32,6 +33,6 @@ export function buildApp() {
 
     // ── Routes ───────────────────────────────────────────
     app.register(salesRoutes, { prefix: "/sales" });
-
+    app.register(authRoutes, { prefix: "/auth" });
     return app;
 }
