@@ -134,24 +134,24 @@ DECLARE
 BEGIN
   SELECT id INTO admin_id FROM users WHERE email = 'admin@local.dev';
 
-  INSERT INTO items (id, name, description, price_cents, initial_quantity, created_by)
-  VALUES (
-    uuid_generate_v4(),
-    'Limited Edition Sneaker',
-    'Hand-crafted limited run of 50 pairs. Size US 10. Ships within 3 days.',
-    29900,
-    50,
-    admin_id
-  )
-  RETURNING id INTO item_id;
+  -- INSERT INTO items (id, name, description, price_cents, initial_quantity, created_by)
+  -- VALUES (
+  --   uuid_generate_v4(),
+  --   'Limited Edition Sneaker',
+  --   'Hand-crafted limited run of 50 pairs. Size US 10. Ships within 3 days.',
+  --   29900,
+  --   50,
+  --   admin_id
+  -- )
+  -- RETURNING id INTO item_id;
 
-  INSERT INTO flash_sales (item_id, title, starts_at, ends_at, status, created_by)
-  VALUES (
-    item_id,
-    'Sneaker Drop #001',
-    NOW() + INTERVAL '5 minutes',
-    NOW() + INTERVAL '35 minutes',
-    'scheduled',
-    admin_id
-  );
+  -- INSERT INTO flash_sales (item_id, title, starts_at, ends_at, status, created_by)
+  -- VALUES (
+  --   item_id,
+  --   'Sneaker Drop #001',
+  --   NOW() + INTERVAL '5 minutes',
+  --   NOW() + INTERVAL '35 minutes',
+  --   'scheduled',
+  --   admin_id
+  -- );
 END $$;

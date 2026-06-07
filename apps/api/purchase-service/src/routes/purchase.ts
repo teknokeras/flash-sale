@@ -44,7 +44,7 @@ export async function purchaseRoutes(app: FastifyInstance) {
         async (request, reply) => {
             const { saleId } = request.body;
             const user = request.user as { id: string; email: string };
-            const userId = user.id;
+            const userId = user.sub ?? user.id;
             const requestId = randomUUID();
             const redis = app.redis;
 
