@@ -25,7 +25,6 @@ function authHeaders(): HeadersInit {
 }
 
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-    // Determine if we should send the Content-Type header based on whether there's a body
     const hasBody = init && init.body;
 
     const res = await fetch(url, {
@@ -45,20 +44,37 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 // ── Sale Service ─────────────────────────────────────────────
 
 export const saleApi = {
-    getActive: async (): Promise<Sale> => {
-        const raw = await apiFetch<any>('/api/sale/sales/active')
-        // Normalize backend shape { active, sale, item } → Sale
-        if (raw && raw.sale) {
+    getActive: async (): Promise<any> => { // Changed to any to support both active and scheduled states
+        const raw = await apiFetch<any>('/api/sale/sales/active');
+
+        if (raw.active && raw.sale) {
             return {
-                id: raw.sale.id,
-                startsAt: raw.sale.startsAt,
-                endsAt: raw.sale.endsAt,
-                status: raw.active ? 'active' : 'ended',
-                item: raw.item ?? undefined,
-                remainingQuantity: raw.sale.remainingQty ?? raw.sale.remainingQuantity,
-            }
+                active: true,
+                sale: {
+                    id: raw.sale.id,
+                    title: raw.sale.title || 'Flash Sale Event',
+                    specialPrice: raw.sale.priceCents ?? 0,
+                    initialQuantity: raw.sale.initialQuantity ?? 0,
+                    startsAt: raw.sale.startsAt,
+                    endsAt: raw.sale.endsAt,
+                    status: 'active',
+                    item: raw.item ?? undefined,
+                    remainingQuantity: raw.sale.remainingQty ?? 0,
+                }
+            };
         }
-        return raw as Sale
+
+        // Handle the scheduled case
+        return {
+            active: false,
+            nextSale: raw.nextSale ? {
+                id: raw.nextSale.id,
+                title: raw.nextSale.title,
+                startsAt: raw.nextSale.startsAt,
+                endsAt: raw.nextSale.endsAt,
+                status: raw.nextSale.status
+            } : null
+        };
     },
     getSale: (id: string) => apiFetch<Sale>(`/api/sale/sales/${id}`),
     register: (body: { email: string; password: string; name: string }) =>
@@ -80,8 +96,6 @@ export const purchaseApi = {
         method: 'POST',
         body: JSON.stringify({ saleId }),
     }),
-
-    // ── NEW METHOD ──
     getMyPurchases: () => apiFetch<Array<{
         orderId: string;
         status: string;
@@ -101,11 +115,11 @@ export const adminApi = {
             method: 'POST',
             body: JSON.stringify(body),
         }),
-    createItem: (body: { name: string; description: string; priceCents: number; initialQuantity: number }) =>
+    createItem: (body: { name: string; description: string; priceCents: number; imageUrls?: string[] }) =>
         apiFetch('/api/admin/admin/items', { method: 'POST', body: JSON.stringify(body) }),
     getItems: () => apiFetch<Item[]>('/api/admin/admin/items'),
     getAvailableItems: () => apiFetch<Item[]>('/api/admin/admin/items/available'),
-    createSale: (body: { startsAt: string; endsAt: string }) =>
+    createSale: (body: { title: string; specialPrice: number; initialQuantity: number; startsAt: string; endsAt: string }) =>
         apiFetch('/api/admin/admin/sales', { method: 'POST', body: JSON.stringify(body) }),
     getSales: () => apiFetch<Sale[]>('/api/admin/admin/sales'),
     updateSale: (id: string, body: object) =>
@@ -135,22 +149,29 @@ export interface Item {
     name: string
     description: string
     priceCents: number
-    initialQuantity: number
+    imageUrls?: string[]
 }
 
 export interface Sale {
     id: string
+    title: string
+    specialPrice: number
+    initialQuantity: number
     startsAt: string
     endsAt: string
-    status: 'upcoming' | 'active' | 'ended'
+    status: 'draft' | 'scheduled' | 'upcoming' | 'active' | 'ended' | 'cancelled'
     item?: Item
     remainingQuantity?: number
 }
 
+// 💡 Fixed: Restructured properties to cleanly match the flat object layout returned from sales.ts
 export interface Order {
-    id: string
-    userId: string
-    saleId: string
+    orderId: string
+    status: string
     createdAt: string
-    user?: User
+    userId: string
+    userName: string
+    userEmail: string
+    saleId?: string
+    saleTitle?: string
 }

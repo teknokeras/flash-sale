@@ -1,11 +1,13 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer } from "drizzle-orm/pg-core"; // 👈 Added integer import
 import { users } from "./users.js";
 import { items } from "./items.js";
 
 export const flashSales = pgTable("flash_sales", {
     id: uuid("id").primaryKey().defaultRandom(),
     itemId: uuid("item_id").references(() => items.id),
+    initialQuantity: integer("initial_quantity").notNull(),
     title: text("title").notNull(),
+    priceCents: integer("price_cents").notNull(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     status: text("status", {

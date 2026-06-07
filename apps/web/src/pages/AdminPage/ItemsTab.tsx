@@ -6,19 +6,18 @@ import { s } from './adminStyles'
 
 export default function ItemsTab({ qc }: { qc: QueryClient }) {
     const { data: items = [] } = useQuery({ queryKey: ['admin-items'], queryFn: adminApi.getItems })
-    const [form, setForm] = useState({ name: '', description: '', priceCents: '', initialQuantity: '' })
+    const [form, setForm] = useState({ name: '', description: '', priceCents: '' })
     const [msg, setMsg] = useState<string | null>(null)
 
     const { mutate: createItem } = useMutation({
         mutationFn: () => adminApi.createItem({
             ...form,
             priceCents: Number(form.priceCents),
-            initialQuantity: Number(form.initialQuantity),
         }),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['admin-items'] });
             setMsg('Item created!');
-            setForm({ name: '', description: '', priceCents: '', initialQuantity: '' });
+            setForm({ name: '', description: '', priceCents: '' });
         },
         onError: (e: any) => setMsg(e.error ?? 'Error'),
     })
@@ -37,7 +36,6 @@ export default function ItemsTab({ qc }: { qc: QueryClient }) {
             {field('name', 'Name')}
             {field('description', 'Description')}
             {field('priceCents', 'Price (cents)', 'number')}
-            {field('initialQuantity', 'Quantity', 'number')}
             <button style={s.btn} onClick={() => createItem()}>Create Item</button>
             {msg && <div style={s.ok}>{msg}</div>}
 
@@ -52,7 +50,6 @@ export default function ItemsTab({ qc }: { qc: QueryClient }) {
                             <td style={s.td}>{item.name}</td>
                             <td style={s.td}>{item.description}</td>
                             <td style={s.td}>${(item.priceCents / 100).toFixed(2)}</td>
-                            <td style={s.td}>{item.initialQuantity}</td>
                         </tr>
                     ))}
                 </tbody>

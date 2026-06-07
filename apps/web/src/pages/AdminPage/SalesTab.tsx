@@ -10,20 +10,15 @@ interface SalesTabProps {
 
 export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
     const { data: sales = [] } = useQuery({ queryKey: ['admin-sales'], queryFn: adminApi.getSales })
-    const { data: items = [] } = useQuery({ queryKey: ['admin-items'], queryFn: adminApi.getItems })
+    const { data: items = [] } = useQuery({ queryKey: ['admin-items'], queryFn: adminApi.getAvailableItems }) // 👈 OPTIMIZATION: Switched to fetch available items directly
 
-    const [form, setForm] = useState({ title: '', startsAt: '', endsAt: '', itemId: '' })
-    // Tracks specific field errors independently
-    const [errors, setErrors] = useState({ title: '', startsAt: '', endsAt: '', itemId: '' })
+    const [form, setForm] = useState({ title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' })
+    const [errors, setErrors] = useState({ title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' })
     const [msg, setMsg] = useState<string | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
 
-    // Filter available stock quantities bigger than 0
-    const validItems = items.filter((item: Item) => item.initialQuantity > 0)
-
     const handleChange = (field: keyof typeof form, value: string) => {
         setForm(f => ({ ...f, [field]: value }))
-        // Instantly clean up the field validation text once input is registered
         if (value.trim() !== '') {
             setErrors(e => ({ ...e, [field]: '' }))
         }
@@ -38,9 +33,11 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
     const { mutate: handleCreateSale } = useMutation({
         mutationFn: () => adminApi.createSale({
             title: form.title,
-            startsAt: new Date(form.startsAt).toISOString(),
+            specialPrice: Math.round(parseFloat(form.specialPrice) * 100),
+            initialQuantity: parseInt(form.initialQuantity, 10),
+            startsAt: new Date(form.startsAt).toISOString(), // 👈 Safely matches the ISO structure
             endsAt: new Date(form.endsAt).toISOString()
-        } as any),
+        }),
         onSuccess: async (newSale: any) => {
             try {
                 if (form.itemId && newSale?.id) {
@@ -50,8 +47,8 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
                     setMsg('Flash sale created successfully!')
                 }
 
-                setForm({ title: '', startsAt: '', endsAt: '', itemId: '' })
-                setErrors({ title: '', startsAt: '', endsAt: '', itemId: '' })
+                setForm({ title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' })
+                setErrors({ title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' })
                 qc.invalidateQueries({ queryKey: ['admin-sales'] })
             } catch (err) {
                 console.error(err)
@@ -66,24 +63,34 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
     })
 
     const submitUnifiedForm = () => {
-        const newErrors = { title: '', startsAt: '', endsAt: '', itemId: '' }
+        const newErrors = { title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' }
         let hasEmptyFields = false
 
-        // Evaluate all properties dynamically
         if (!form.title.trim()) { newErrors.title = 'Flash Sale Title is mandatory.'; hasEmptyFields = true; }
         if (!form.itemId.trim()) { newErrors.itemId = 'Selecting an item is mandatory.'; hasEmptyFields = true; }
         if (!form.startsAt.trim()) { newErrors.startsAt = 'Start time is mandatory.'; hasEmptyFields = true; }
         if (!form.endsAt.trim()) { newErrors.endsAt = 'End time is mandatory.'; hasEmptyFields = true; }
+        if (!form.specialPrice.trim()) { newErrors.specialPrice = 'Promo price is mandatory.'; hasEmptyFields = true; }
+
+        if (!form.initialQuantity.trim()) {
+            newErrors.initialQuantity = 'Sale allocation quantity is mandatory.';
+            hasEmptyFields = true;
+        } else if (isNaN(Number(form.initialQuantity)) || Number(form.initialQuantity) <= 0) {
+            newErrors.initialQuantity = 'Please specify a target value greater than 0.';
+            hasEmptyFields = true;
+        }
 
         if (hasEmptyFields) {
             setErrors(newErrors)
-            setMsg(null)
             return
         }
 
+        // ── FIX: Explicit parsing guarantees timezone alignment ──
         const startTimestamp = new Date(form.startsAt).getTime()
         const endTimestamp = new Date(form.endsAt).getTime()
-        const minAllowedStart = Date.now() + 15 * 60 * 1000
+        const nowTimestamp = Date.now()
+
+        const minAllowedStart = nowTimestamp + 14 * 60 * 1000 // Added 1-minute buffer to accommodate client submission latency
 
         if (startTimestamp < minAllowedStart) {
             setMsg('Error: Sale start time must be at least 15 minutes from now.')
@@ -96,7 +103,7 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
         }
 
         setMsg(null)
-        setErrors({ title: '', startsAt: '', endsAt: '', itemId: '' })
+        setErrors({ title: '', specialPrice: '', initialQuantity: '', startsAt: '', endsAt: '', itemId: '' })
         setIsProcessing(true)
         handleCreateSale()
     }
@@ -110,7 +117,6 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
         onError: (e: any) => setMsg(e.response?.data?.message ?? e.error ?? 'Error deleting sale'),
     })
 
-    // Inline field validation label styling layout schema
     const fieldErrorStyle: React.CSSProperties = { display: 'block', color: '#dc2626', fontSize: '12px', marginTop: '4px', fontWeight: 500 }
 
     return (
@@ -129,13 +135,40 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
                 <select style={{ ...s.input, borderColor: errors.itemId ? '#dc2626' : '#e5e7eb' }} value={form.itemId}
                     onChange={e => handleChange('itemId', e.target.value)}>
                     <option value="">— pick available item —</option>
-                    {validItems.map((item: Item) => (
+                    {items.map((item: Item) => (
                         <option key={item.id} value={item.id}>
-                            {item.name} ({item.initialQuantity} units available)
+                            {item.name} (${(item.priceCents / 100).toFixed(2)})
                         </option>
                     ))}
                 </select>
                 {errors.itemId && <span style={fieldErrorStyle}>{errors.itemId}</span>}
+            </div>
+
+            <div style={s.formRow}>
+                <label style={s.label}>Promo Sale Price ($)</label>
+                <input
+                    style={{ ...s.input, borderColor: errors.specialPrice ? '#dc2626' : '#e5e7eb' }}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g., 19.99"
+                    value={form.specialPrice}
+                    onChange={e => handleChange('specialPrice', e.target.value)}
+                />
+                {errors.specialPrice && <span style={fieldErrorStyle}>{errors.specialPrice}</span>}
+            </div>
+
+            <div style={s.formRow}>
+                <label style={s.label}>Sale Allocation Stock Quantity</label>
+                <input
+                    style={{ ...s.input, borderColor: errors.initialQuantity ? '#dc2626' : '#e5e7eb' }}
+                    type="number"
+                    min="1"
+                    placeholder="e.g., 100"
+                    value={form.initialQuantity}
+                    onChange={e => handleChange('initialQuantity', e.target.value)}
+                />
+                {errors.initialQuantity && <span style={fieldErrorStyle}>{errors.initialQuantity}</span>}
             </div>
 
             <div style={s.formRow}>
@@ -171,7 +204,7 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
             <h2 style={{ ...s.h2, marginTop: 32 }}>All Flash Sales</h2>
             <table style={s.table}>
                 <thead>
-                    <tr>{['Title', 'Status', 'Starts', 'Ends', 'Item', 'Actions'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
+                    <tr>{['Title', 'Promo Price', 'Allocated Stock', 'Status', 'Starts', 'Ends', 'Item', 'Actions'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                     {sales.map((sale: Sale) => {
@@ -179,15 +212,21 @@ export default function SalesTab({ qc, onSelectSale }: SalesTabProps) {
                         const start = new Date(sale.startsAt).getTime()
                         const end = new Date(sale.endsAt).getTime()
                         const isDeletable = now < start || now > end;
-                        const saleTitle = (sale as any).title || sale.id.slice(0, 8);
+                        const saleTitle = sale.title || sale.id.slice(0, 8);
+
+                        const displayPromoPrice = sale.specialPrice !== undefined
+                            ? `$${(sale.specialPrice / 100).toFixed(2)}`
+                            : '—';
 
                         return (
                             <tr key={sale.id}>
                                 <td style={s.td}>{saleTitle}</td>
+                                <td style={{ ...s.td, fontWeight: 600, color: '#111827' }}>{displayPromoPrice}</td>
+                                <td style={s.td}>{sale.initialQuantity ?? '—'} units</td>
                                 <td style={s.td}><span style={{ ...s.badge, background: badgeColor(sale.status) }}>{sale.status}</span></td>
                                 <td style={s.td}>{new Date(sale.startsAt).toLocaleString()}</td>
                                 <td style={s.td}>{new Date(sale.endsAt).toLocaleString()}</td>
-                                <td style={s.td}>{(sale as any).item?.name ?? '—'}</td>
+                                <td style={s.td}>{sale.item?.name ?? '—'}</td>
                                 <td style={{ ...s.td, display: 'flex', gap: '12px', alignItems: 'center' }}>
                                     <button style={s.linkBtn} onClick={() => onSelectSale(sale.id)}>View orders</button>
                                     {isDeletable ? (

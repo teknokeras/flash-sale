@@ -8,8 +8,6 @@ const app = buildApp();
 
 // ── Sale scheduler ────────────────────────────────────────────────────────────
 // Runs every 30 seconds. Opens/closes sales based on current time.
-// On open: seeds Redis with inventory count + TTL-based open flag.
-// On close: cleans up Redis key (TTL handles it, but explicit is safer).
 cron.schedule("*/30 * * * * *", async () => {
     const redis = app.redis;
     const now = new Date();
@@ -30,19 +28,16 @@ cron.schedule("*/30 * * * * *", async () => {
         for (const sale of toOpen) {
             if (!sale.itemId) continue;
 
-            // Get initial quantity from item
-            const [item] = await db.query.items.findMany({
-                where: (items, { eq }) => eq(items.id, sale.itemId!),
-                limit: 1,
-            });
-            if (!item) continue;
+            // 💡 FIXED: We don't need to query the item table anymore! 
+            // The initialQuantity now lives right inside the sale table row.
+            const initialQty = sale.initialQuantity;
 
             const ttlSeconds = Math.floor(
                 (sale.endsAt.getTime() - now.getTime()) / 1000
             );
 
-            // Seed inventory only if not already set (idempotent)
-            await redis.set(`sale:${sale.id}:qty`, item.initialQuantity, "NX");
+            // Seed inventory using the campaign-specific quantity (idempotent)
+            await redis.set(`sale:${sale.id}:qty`, initialQty, "NX");
             await redis.set(`sale:${sale.id}:open`, "1", "EX", ttlSeconds);
 
             await db
@@ -50,7 +45,7 @@ cron.schedule("*/30 * * * * *", async () => {
                 .set({ status: "active", updatedAt: now })
                 .where(eq(flashSales.id, sale.id));
 
-            app.log.info({ saleId: sale.id, qty: item.initialQuantity, ttlSeconds },
+            app.log.info({ saleId: sale.id, qty: initialQty, ttlSeconds },
                 "Sale opened");
         }
 

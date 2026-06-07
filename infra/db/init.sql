@@ -34,7 +34,6 @@ CREATE TABLE items (
   description      TEXT NOT NULL,
   price_cents      INTEGER NOT NULL CHECK (price_cents > 0),
   image_urls       TEXT[] NOT NULL DEFAULT '{}',
-  initial_quantity INTEGER NOT NULL CHECK (initial_quantity > 0),
   created_by       UUID NOT NULL REFERENCES users(id),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -46,16 +45,18 @@ CREATE TABLE items (
 -- One item per sale, defined start/end window
 -- ─────────────────────────────────────────────
 CREATE TABLE flash_sales (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  item_id     UUID REFERENCES items(id),
-  title       TEXT NOT NULL,
-  starts_at   TIMESTAMPTZ NOT NULL,
-  ends_at     TIMESTAMPTZ NOT NULL,
-  status      TEXT NOT NULL DEFAULT 'draft'
-                CHECK (status IN ('draft', 'scheduled', 'active', 'ended', 'cancelled')),
-  created_by  UUID NOT NULL REFERENCES users(id),
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  item_id           UUID REFERENCES items(id),
+  initial_quantity  INTEGER NOT NULL CHECK (initial_quantity > 0),
+  price_cents      INTEGER NOT NULL CHECK (price_cents > 0),
+  title             TEXT NOT NULL,
+  starts_at         TIMESTAMPTZ NOT NULL,
+  ends_at           TIMESTAMPTZ NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'draft'
+                      CHECK (status IN ('draft', 'scheduled', 'active', 'ended', 'cancelled')),
+  created_by        UUID NOT NULL REFERENCES users(id),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   CONSTRAINT ends_after_starts CHECK (ends_at > starts_at),
   CONSTRAINT one_item_per_sale UNIQUE (id, item_id)

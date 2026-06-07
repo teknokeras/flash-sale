@@ -9,26 +9,22 @@ export default function SalePage() {
     const { isLoggedIn, role, logout } = userData;
     const qc = useQueryClient()
 
-    console.log('Rendering SalePage - Auth State:', userData)
-
-    // 1. Fetch data from active-sale endpoint
-    const { data: rawSale, isLoading, error } = useQuery({
+    // 1. Fetch data
+    const { data: response, isLoading, error } = useQuery({
         queryKey: ['active-sale'],
         queryFn: saleApi.getActive,
         refetchInterval: 3000,
         retry: false,
     })
 
-    // 2. Normalize potential variations in payload wrapping (Array vs Object envelope)
-    const sale: Sale | undefined = Array.isArray(rawSale)
-        ? rawSale[0]
-        : (rawSale && (rawSale as any).data)
-            ? (rawSale as any).data
-            : rawSale as Sale | undefined;
+    // 2. Normalize: response is { active: boolean, sale?: Sale, nextSale?: Sale }
+    const isActive = response?.active;
+    const sale: Sale | undefined = response?.active ? response.sale : response?.nextSale;
+    const status = isActive ? 'active' : (sale ? 'upcoming' : 'ended');
 
-    // 3. Fallback date targets
-    const targetDate = sale?.startsAt || sale?.endsAt ? (sale.status === 'upcoming' ? sale.startsAt : sale.endsAt) : null;
-    const countdown = useCountdown(targetDate)
+    // 3. Countdown targets
+    const targetDate = sale ? (isActive ? sale.endsAt : sale.startsAt) : null;
+    const countdown = useCountdown(targetDate);
 
     const [purchaseMsg, setPurchaseMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -48,86 +44,42 @@ export default function SalePage() {
         },
     })
 
-    // Determine configuration properties dynamically based on authentication state state
     const showTopPanel = !isLoggedIn || role === 'buyer'
     const buttonText = isLoggedIn ? 'My Purchase' : 'Login'
     const buttonHref = isLoggedIn ? '/my-purchase' : '/login'
     const statusText = isLoggedIn ? 'Shopping Mode Active' : 'Guest Mode'
 
-    // Render loading state inside full layout frame to maintain UI structure
     if (isLoading) return <div style={s.center}>Loading sale...</div>
 
-    // If we have an ID, we have a valid sale entry to show, even if relations are lazy-loaded
-    if (error || !sale || !sale.id) {
+    if (error || !sale) {
         return (
-            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6' }}>
-                {showTopPanel && (
-                    <div style={s.topPanel}>
-                        <span style={s.panelWelcome}>Flash Sale Hub — {statusText}</span>
-                        <div style={s.rightActions}>
-                            <a href={buttonHref} style={s.myPurchaseBtn}>{buttonText}</a>
-                            {isLoggedIn && (
-                                <button onClick={logout} style={s.logoutBtn}>Logout</button>
-                            )}
-                        </div>
-                    </div>
-                )}
-                <div style={s.center}>No active sale right now. Check back soon!</div>
+            <div style={s.layout}>
+                {showTopPanel && <TopPanel {...{ showTopPanel, buttonHref, buttonText, isLoggedIn, logout, statusText }} />}
+                <div style={s.center}>No sales scheduled. Check back soon!</div>
             </div>
         )
     }
 
-    const price = sale.item ? `$${(sale.item.priceCents / 100).toFixed(2)}` : null
-    const displayStatus = (sale.status || 'ACTIVE').toUpperCase()
+    const price = sale.specialPrice ? `$${(sale.specialPrice / 100).toFixed(2)}` : null
+    const displayStatus = status.toUpperCase()
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6' }}>
+        <div style={s.layout}>
+            {showTopPanel && <TopPanel {...{ showTopPanel, buttonHref, buttonText, isLoggedIn, logout, statusText }} />}
 
-            {/* ── TOP PANEL (Visible to Guests and logged-in Buyers) ── */}
-            {showTopPanel && (
-                <div style={s.topPanel}>
-                    <span style={s.panelWelcome}>{statusText}</span>
-                    <div style={s.rightActions}>
-                        <a href={buttonHref} style={s.myPurchaseBtn}>
-                            {buttonText}
-                        </a>
-                        {isLoggedIn && (
-                            <button onClick={logout} style={s.logoutBtn}>
-                                Logout
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Main Center Content Section */}
             <div style={s.mainBody}>
                 <div style={s.card}>
-                    {/* Status badge */}
-                    <div style={{ ...s.badge, background: badgeColor(sale.status) }}>
+                    <div style={{ ...s.badge, background: status === 'active' ? '#10b981' : '#f59e0b' }}>
                         {displayStatus}
                     </div>
 
-                    {/* Item / Sale Title Render Info Block */}
-                    {sale.item ? (
-                        <>
-                            <h1 style={s.title}>{sale.item.name}</h1>
-                            <p style={s.desc}>{sale.item.description}</p>
-                            {price && <div style={s.price}>{price}</div>}
-                        </>
-                    ) : (
-                        <>
-                            <h1 style={s.title}>{(sale as any).title || 'Flash Sale Event'}</h1>
-                            <p style={s.desc}>Item information is being finalized. Get ready!</p>
-                        </>
-                    )}
+                    <h1 style={s.title}>{sale.title}</h1>
+                    {sale.item && <p style={s.desc}>{sale.item.description}</p>}
+                    {price && <div style={s.price}>{price}</div>}
 
-                    {/* Countdown display logic */}
                     {!countdown.isOver && targetDate && (
                         <div style={s.countdownBox}>
-                            <div style={s.countdownLabel}>
-                                {sale.status === 'upcoming' ? 'Starts in' : 'Ends in'}
-                            </div>
+                            <div style={s.countdownLabel}>{isActive ? 'Ends in' : 'Starts in'}</div>
                             <div style={s.countdown}>
                                 {countdown.days > 0 && <Unit n={countdown.days} label="d" />}
                                 <Unit n={countdown.hours} label="h" />
@@ -137,44 +89,31 @@ export default function SalePage() {
                         </div>
                     )}
 
-                    {/* Inventory tracking */}
-                    {sale.remainingQuantity !== undefined && sale.remainingQuantity !== null && (
+                    {isActive && (
                         <div style={s.qty}>
-                            {sale.remainingQuantity} units left
+                            {sale.remainingQuantity ?? 0} units left!
                         </div>
                     )}
 
-                    {/* Conditional checkout button rendering matching base payload flags */}
-                    {(sale.status === 'active' || !sale.status) && sale.item && (
-                        <>
-                            {!isLoggedIn || role !== 'buyer' ? (
-                                <p style={s.hint}>
-                                    <a href="/login" style={s.link}>Log in</a> or{' '}
-                                    <a href="/register" style={s.link}>register</a> to buy
-                                </p>
-                            ) : (
-                                <button
-                                    style={s.buyBtn}
-                                    onClick={() => { setPurchaseMsg(null); buy() }}
-                                    disabled={isPending}
-                                >
-                                    {isPending ? 'Processing...' : 'Buy Now'}
-                                </button>
-                            )}
-                        </>
+                    {/* Purchase Logic: Only show button if status is active */}
+                    {isActive ? (
+                        !isLoggedIn || role !== 'buyer' ? (
+                            <p style={s.hint}><a href="/login" style={s.link}>Log in</a> to buy</p>
+                        ) : (
+                            <button style={s.buyBtn} onClick={() => { setPurchaseMsg(null); buy() }} disabled={isPending}>
+                                {isPending ? 'Processing...' : 'Buy Now'}
+                            </button>
+                        )
+                    ) : (
+                        <p style={s.hint}>{status === 'upcoming' ? 'Sale starts soon!' : 'Sale has ended.'}</p>
                     )}
 
-                    {purchaseMsg && (
-                        <div style={{ ...s.msg, background: purchaseMsg.type === 'ok' ? '#d1fae5' : '#fee2e2' }}>
-                            {purchaseMsg.text}
-                        </div>
-                    )}
+                    {purchaseMsg && <div style={{ ...s.msg, background: purchaseMsg.type === 'ok' ? '#d1fae5' : '#fee2e2' }}>{purchaseMsg.text}</div>}
                 </div>
             </div>
         </div>
     )
 }
-
 function Unit({ n, label }: { n: number; label: string }) {
     return (
         <div style={{ textAlign: 'center', margin: '0 6px' }}>
@@ -182,6 +121,18 @@ function Unit({ n, label }: { n: number; label: string }) {
                 {String(n ?? 0).padStart(2, '0')}
             </div>
             <div style={{ fontSize: 12, color: '#6b7280' }}>{label}</div>
+        </div>
+    )
+}
+
+function TopPanel({ showTopPanel, buttonHref, buttonText, isLoggedIn, logout, statusText }: any) {
+    return (
+        <div style={s.topPanel}>
+            <span style={s.panelWelcome}>{statusText}</span>
+            <div style={s.rightActions}>
+                <a href={buttonHref} style={s.myPurchaseBtn}>{buttonText}</a>
+                {isLoggedIn && <button onClick={logout} style={s.logoutBtn}>Logout</button>}
+            </div>
         </div>
     )
 }
@@ -239,7 +190,7 @@ const s: Record<string, React.CSSProperties> = {
     countdownBox: { margin: '24px 0', padding: '16px', background: '#f9fafb', borderRadius: 12 },
     countdownLabel: { fontSize: 13, color: '#9ca3af', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
     countdown: { display: 'flex', justifyContent: 'center' },
-    qty: { fontSize: 14, color: '#9ca3af', margin: '8px 0 20px' },
+    qty: { fontSize: 14, color: '#6b7280', fontWeight: 600, margin: '8px 0 20px' }, // Tweaked style properties for micro-copy readability
     buyBtn: { width: '100%', padding: '14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer' },
     hint: { fontSize: 14, color: '#6b7280' },
     link: { color: '#111827', fontWeight: 600 },

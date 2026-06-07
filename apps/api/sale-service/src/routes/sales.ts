@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { db, flashSales, items } from "@flash-sale/db";
-import { eq } from "drizzle-orm";
+import { db } from "@flash-sale/db"; // 💡 Completely dropped items and flashSales tokens to bypass schema corruption
+import { sql } from "drizzle-orm";
 
 export async function salesRoutes(app: FastifyInstance) {
 
@@ -8,33 +8,43 @@ export async function salesRoutes(app: FastifyInstance) {
     app.get("/active", async (request, reply) => {
         const redis = app.redis;
 
-        // Try to find an active sale
-        const [sale] = await db
-            .select()
-            .from(flashSales)
-            .where(eq(flashSales.status, "active"))
-            .limit(1);
+        const result = await db.execute(sql`
+            SELECT 
+                id, 
+                item_id as "itemId", 
+                title, 
+                starts_at as "startsAt", 
+                ends_at as "endsAt", 
+                status, 
+                initial_quantity as "initialQuantity", 
+                price_cents as "priceCents"
+            FROM flash_sales
+            WHERE status = 'active'
+            LIMIT 1
+        `);
+
+        const sale = (Array.isArray(result) ? result[0] : (result as any).rows?.[0]) || null;
 
         if (!sale) {
-            // Also check for the next scheduled sale so the frontend can show a countdown
-            const [next] = await db
-                .select()
-                .from(flashSales)
-                .where(eq(flashSales.status, "scheduled"))
-                .orderBy(flashSales.startsAt)
-                .limit(1);
+            const nextResult = await db.execute(sql`
+                SELECT id, title, starts_at as "startsAt", ends_at as "endsAt", status
+                FROM flash_sales
+                WHERE status = 'scheduled'
+                ORDER BY starts_at ASC
+                LIMIT 1
+            `);
+
+            const next = (Array.isArray(nextResult) ? nextResult[0] : (nextResult as any).rows?.[0]) || null;
 
             return reply.send({
                 active: false,
-                nextSale: next ?? null,
+                nextSale: next,
             });
         }
 
-        // Get remaining quantity from Redis (source of truth for live qty)
         const qtyRaw = await redis.get(`sale:${sale.id}:qty`);
         const remainingQty = qtyRaw !== null ? parseInt(qtyRaw, 10) : 0;
 
-        // Get item from cache or DB
         let item = null;
         if (sale.itemId) {
             const cacheKey = `sale:${sale.id}:info`;
@@ -43,15 +53,18 @@ export async function salesRoutes(app: FastifyInstance) {
             if (cached) {
                 item = JSON.parse(cached);
             } else {
-                const [dbItem] = await db
-                    .select()
-                    .from(items)
-                    .where(eq(items.id, sale.itemId))
-                    .limit(1);
+                // 💡 Fixed: Switched items table fetch to raw SQL to drop the phantom columns crashing Postgres
+                const itemResult = await db.execute(sql`
+                    SELECT id, name, description, price_cents as "priceCents", image_urls as "imageUrls"
+                    FROM items
+                    WHERE id = ${sale.itemId}
+                    LIMIT 1
+                `);
+
+                const dbItem = (Array.isArray(itemResult) ? itemResult[0] : (itemResult as any).rows?.[0]) || null;
 
                 if (dbItem) {
                     item = dbItem;
-                    // Cache for 60s — item info rarely changes during a live sale
                     await redis.set(cacheKey, JSON.stringify(dbItem), "EX", 60);
                 }
             }
@@ -64,6 +77,8 @@ export async function salesRoutes(app: FastifyInstance) {
                 title: sale.title,
                 startsAt: sale.startsAt,
                 endsAt: sale.endsAt,
+                initialQuantity: Number(sale.initialQuantity ?? 0),
+                priceCents: Number(sale.priceCents ?? 0),
                 remainingQty,
             },
             item,
@@ -75,11 +90,22 @@ export async function salesRoutes(app: FastifyInstance) {
         const { id } = request.params;
         const redis = app.redis;
 
-        const [sale] = await db
-            .select()
-            .from(flashSales)
-            .where(eq(flashSales.id, id))
-            .limit(1);
+        const result = await db.execute(sql`
+            SELECT 
+                id, 
+                item_id as "itemId", 
+                title, 
+                starts_at as "startsAt", 
+                ends_at as "endsAt", 
+                status, 
+                initial_quantity as "initialQuantity", 
+                price_cents as "priceCents"
+            FROM flash_sales
+            WHERE id = ${id}
+            LIMIT 1
+        `);
+
+        const sale = (Array.isArray(result) ? result[0] : (result as any).rows?.[0]) || null;
 
         if (!sale) return reply.notFound("Sale not found");
 
@@ -88,13 +114,24 @@ export async function salesRoutes(app: FastifyInstance) {
 
         let item = null;
         if (sale.itemId) {
-            [item] = await db
-                .select()
-                .from(items)
-                .where(eq(items.id, sale.itemId))
-                .limit(1);
+            // 💡 Fixed: Switched to raw execution here too
+            const itemResult = await db.execute(sql`
+                SELECT id, name, description, price_cents as "priceCents", image_urls as "imageUrls"
+                FROM items
+                WHERE id = ${sale.itemId}
+                LIMIT 1
+            `);
+            item = (Array.isArray(itemResult) ? itemResult[0] : (itemResult as any).rows?.[0]) || null;
         }
 
-        return reply.send({ sale, item, remainingQty });
+        return reply.send({
+            sale: {
+                ...sale,
+                initialQuantity: Number(sale.initialQuantity ?? 0),
+                priceCents: Number(sale.priceCents ?? 0),
+            },
+            item,
+            remainingQty
+        });
     });
 }

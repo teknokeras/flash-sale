@@ -37,6 +37,8 @@ export async function adminSalesRoutes(app: FastifyInstance) {
     app.post<{
         Body: {
             title: string;
+            specialPrice: number;
+            initialQuantity: number;
             startsAt: string;
             endsAt: string;
         };
@@ -47,9 +49,11 @@ export async function adminSalesRoutes(app: FastifyInstance) {
             schema: {
                 body: {
                     type: "object",
-                    required: ["title", "startsAt", "endsAt"],
+                    required: ["title", "specialPrice", "initialQuantity", "startsAt", "endsAt"],
                     properties: {
                         title: { type: "string", minLength: 1 },
+                        specialPrice: { type: "integer", minimum: 0 },
+                        initialQuantity: { type: "integer", minimum: 1 },
                         startsAt: { type: "string", format: "date-time" },
                         endsAt: { type: "string", format: "date-time" },
                     },
@@ -58,7 +62,7 @@ export async function adminSalesRoutes(app: FastifyInstance) {
         },
         async (request, reply) => {
             const admin = request.user as { id: string };
-            const { title, startsAt, endsAt } = request.body;
+            const { title, specialPrice, initialQuantity, startsAt, endsAt } = request.body;
 
             const startParsed = new Date(startsAt);
             const endParsed = new Date(endsAt);
@@ -81,6 +85,8 @@ export async function adminSalesRoutes(app: FastifyInstance) {
                 .insert(flashSales)
                 .values({
                     title,
+                    priceCents: specialPrice, // 👈 Maps payload body specialPrice to schema priceCents
+                    initialQuantity,
                     startsAt: startParsed,
                     endsAt: endParsed,
                     status: "scheduled",
@@ -123,15 +129,14 @@ export async function adminSalesRoutes(app: FastifyInstance) {
         }
     );
 
-    // ── FIXED: PUT /admin/sales/:id — update sale schedule ──
+    // PUT /admin/sales/:id — update sale schedule & metadata
     app.put<{
         Params: { id: string };
-        Body: { title?: string; startsAt?: string; endsAt?: string; status?: string };
+        Body: { title?: string; specialPrice?: number; initialQuantity?: number; startsAt?: string; endsAt?: string; status?: string };
     }>("/:id", adminGuard, async (request, reply) => {
         const { id } = request.params;
-        const { title, startsAt, endsAt, status } = request.body;
+        const { title, specialPrice, initialQuantity, startsAt, endsAt, status } = request.body;
 
-        // FIXED: Initialized as undefined instead of null to respect exactOptionalPropertyTypes
         let finalStart: Date | undefined = startsAt ? new Date(startsAt) : undefined;
         let finalEnd: Date | undefined = endsAt ? new Date(endsAt) : undefined;
 
@@ -139,7 +144,6 @@ export async function adminSalesRoutes(app: FastifyInstance) {
             const [existing] = await db.select().from(flashSales).where(eq(flashSales.id, id));
             if (!existing) return reply.notFound("Sale not found");
 
-            // Merge existing data to run validations if inputs are partially provided
             const checkStart = finalStart || new Date(existing.startsAt);
             const checkEnd = finalEnd || new Date(existing.endsAt);
 
@@ -150,19 +154,19 @@ export async function adminSalesRoutes(app: FastifyInstance) {
                 }
             }
 
-            // Enforce minimum 1-minute window
             const minAllowedEnd = new Date(checkStart.getTime() + 1 * 60 * 1000);
             if (checkEnd < minAllowedEnd) {
                 return reply.badRequest("Sale duration must be at least 1 minute long.");
             }
         }
 
-        // FIXED: Conditional spreading ensures undefined keys are omitted entirely from the update payload
         const updatePayload: any = {
             updatedAt: new Date()
         };
 
         if (title !== undefined) updatePayload.title = title;
+        if (specialPrice !== undefined) updatePayload.priceCents = specialPrice; // 👈 Maps body specialPrice to update payload priceCents
+        if (initialQuantity !== undefined) updatePayload.initialQuantity = initialQuantity;
         if (finalStart !== undefined) updatePayload.startsAt = finalStart;
         if (finalEnd !== undefined) updatePayload.endsAt = finalEnd;
         if (status !== undefined) updatePayload.status = status as any;

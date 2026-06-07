@@ -7,7 +7,6 @@ export const items = pgTable("items", {
     description: text("description").notNull(),
     priceCents: integer("price_cents").notNull(),
     imageUrls: text("image_urls").array().notNull().default([]),
-    initialQuantity: integer("initial_quantity").notNull(),
     createdBy: uuid("created_by").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

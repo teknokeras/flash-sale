@@ -36,7 +36,7 @@ export function buildApp() {
 
     app.get("/health", async () => ({ status: "ok", service: "purchase-service" }));
 
-    app.register(purchaseRoutes, { prefix: "/purchase" });
+    app.register(purchaseRoutes, { prefix: "/" });
 
     // This catches the incoming "GET /" traffic forwarded by your proxy gateway!
     // for some reason the gateway strips "/purchase" and just leave the "/" that reach at this point, so we need to register the purchaseRoutes at both "/" and "/purchase" to handle both cases.
