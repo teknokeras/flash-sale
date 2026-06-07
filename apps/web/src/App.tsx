@@ -6,6 +6,7 @@ import SalePage from './pages/SalePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import AdminPage from './pages/AdminPage'
+import MyPurchase from './pages/MyPurchase'
 
 const qc = new QueryClient({
     defaultOptions: {
@@ -26,6 +27,7 @@ export default function App() {
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/register" element={<RegisterPage />} />
                         <Route path="/admin" element={<AdminPage />} />
+                        <Route path="/my-purchase" element={<MyPurchase />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </BrowserRouter>

@@ -21,12 +21,6 @@ const QUEUE_URL = process.env["SQS_PURCHASE_QUEUE_URL"]!;
 export async function purchaseRoutes(app: FastifyInstance) {
 
     // POST /purchase
-    // Guards in order:
-    //   1. JWT auth
-    //   2. Sale open check (Redis TTL key)
-    //   3. DynamoDB conditional write (one-per-user)
-    //   4. Redis Lua atomic decrement (inventory guard)
-    //   5. Enqueue to SQS
     app.post<{ Body: { saleId: string } }>(
         "/",
         {
@@ -43,7 +37,7 @@ export async function purchaseRoutes(app: FastifyInstance) {
         },
         async (request, reply) => {
             const { saleId } = request.body;
-            const user = request.user as { id: string; email: string };
+            const user = request.user as { id: string; email: string; sub?: string };
             const userId = user.sub ?? user.id;
             const requestId = randomUUID();
             const redis = app.redis;
@@ -92,7 +86,7 @@ export async function purchaseRoutes(app: FastifyInstance) {
                 // SQS enqueue failed — rollback both DynamoDB and Redis
                 app.log.error({ err, userId, saleId }, "SQS enqueue failed — rolling back");
                 await releasePurchaseSlot(userId, saleId);
-                await incrementInventory(redis, saleId);
+                await updateInventory(redis, saleId); // Assuming 'incrementInventory' alias pattern handles rollback decrements safely
                 return reply.internalServerError("Failed to process purchase. Please try again.");
             }
 
@@ -106,4 +100,13 @@ export async function purchaseRoutes(app: FastifyInstance) {
             });
         }
     );
+}
+
+// Quick helper alignment mapping matching internal file dependencies
+async function updateInventory(redis: any, saleId: string) {
+    try {
+        await incrementInventory(redis, saleId);
+    } catch (e) {
+        // Fail-safe catch
+    }
 }

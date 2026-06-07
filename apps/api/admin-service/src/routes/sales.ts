@@ -60,16 +60,29 @@ export async function adminSalesRoutes(app: FastifyInstance) {
             const admin = request.user as { id: string };
             const { title, startsAt, endsAt } = request.body;
 
-            if (new Date(endsAt) <= new Date(startsAt)) {
-                return reply.badRequest("endsAt must be after startsAt");
+            const startParsed = new Date(startsAt);
+            const endParsed = new Date(endsAt);
+
+            // Constraint 1: Must start at least 15 minutes from now
+            const minAllowedStart = new Date(Date.now() + 15 * 60 * 1000);
+            if (startParsed < minAllowedStart) {
+                return reply.badRequest(
+                    `Sale start time must be at least 15 minutes in the future. Earliest allowed start is: ${minAllowedStart.toISOString()}`
+                );
+            }
+
+            // Constraint 2: Must end at least +1 minute after it starts
+            const minAllowedEnd = new Date(startParsed.getTime() + 1 * 60 * 1000);
+            if (endParsed < minAllowedEnd) {
+                return reply.badRequest("Sale duration must be at least 1 minute long.");
             }
 
             const [sale] = await db
                 .insert(flashSales)
                 .values({
                     title,
-                    startsAt: new Date(startsAt),
-                    endsAt: new Date(endsAt),
+                    startsAt: startParsed,
+                    endsAt: endParsed,
                     status: "scheduled",
                     createdBy: admin.id,
                 })
@@ -110,7 +123,7 @@ export async function adminSalesRoutes(app: FastifyInstance) {
         }
     );
 
-    // PUT /admin/sales/:id — update sale schedule
+    // ── FIXED: PUT /admin/sales/:id — update sale schedule ──
     app.put<{
         Params: { id: string };
         Body: { title?: string; startsAt?: string; endsAt?: string; status?: string };
@@ -118,15 +131,45 @@ export async function adminSalesRoutes(app: FastifyInstance) {
         const { id } = request.params;
         const { title, startsAt, endsAt, status } = request.body;
 
+        // FIXED: Initialized as undefined instead of null to respect exactOptionalPropertyTypes
+        let finalStart: Date | undefined = startsAt ? new Date(startsAt) : undefined;
+        let finalEnd: Date | undefined = endsAt ? new Date(endsAt) : undefined;
+
+        if (startsAt || endsAt) {
+            const [existing] = await db.select().from(flashSales).where(eq(flashSales.id, id));
+            if (!existing) return reply.notFound("Sale not found");
+
+            // Merge existing data to run validations if inputs are partially provided
+            const checkStart = finalStart || new Date(existing.startsAt);
+            const checkEnd = finalEnd || new Date(existing.endsAt);
+
+            if (startsAt && finalStart) {
+                const minAllowedStart = new Date(Date.now() + 15 * 60 * 1000);
+                if (finalStart < minAllowedStart) {
+                    return reply.badRequest(`Updated sale start time must be at least 15 minutes in the future.`);
+                }
+            }
+
+            // Enforce minimum 1-minute window
+            const minAllowedEnd = new Date(checkStart.getTime() + 1 * 60 * 1000);
+            if (checkEnd < minAllowedEnd) {
+                return reply.badRequest("Sale duration must be at least 1 minute long.");
+            }
+        }
+
+        // FIXED: Conditional spreading ensures undefined keys are omitted entirely from the update payload
+        const updatePayload: any = {
+            updatedAt: new Date()
+        };
+
+        if (title !== undefined) updatePayload.title = title;
+        if (finalStart !== undefined) updatePayload.startsAt = finalStart;
+        if (finalEnd !== undefined) updatePayload.endsAt = finalEnd;
+        if (status !== undefined) updatePayload.status = status as any;
+
         const [sale] = await db
             .update(flashSales)
-            .set({
-                ...(title && { title }),
-                ...(startsAt && { startsAt: new Date(startsAt) }),
-                ...(endsAt && { endsAt: new Date(endsAt) }),
-                ...(status && { status: status as any }),
-                updatedAt: new Date(),
-            })
+            .set(updatePayload)
             .where(eq(flashSales.id, id))
             .returning();
 
@@ -134,6 +177,8 @@ export async function adminSalesRoutes(app: FastifyInstance) {
 
         return reply.send(sale);
     });
+
+    // DELETE /admin/sales/:id
     app.delete<{ Params: { id: string } }>("/:id", adminGuard, async (request, reply) => {
         const { id } = request.params;
         const now = new Date();

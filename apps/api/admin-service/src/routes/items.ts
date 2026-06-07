@@ -1,13 +1,26 @@
 import type { FastifyInstance } from "fastify";
 import { db, items } from "@flash-sale/db";
+import { gt } from "drizzle-orm"; // 👈 Imported the greater-than operator
 
 export async function adminItemsRoutes(app: FastifyInstance) {
     const adminGuard = { onRequest: [(app as any).authenticateAdmin] };
 
-    // GET /admin/items
+    // GET /admin/items — list all items
     app.get("/", adminGuard, async (_request, reply) => {
         const all = await db.select().from(items).orderBy(items.createdAt);
         return reply.send(all);
+    });
+
+    // ── NEW: GET /admin/items/available ───────────────────────────
+    // Returns only items with an initial quantity greater than 0
+    app.get("/available", adminGuard, async (_request, reply) => {
+        const availableItems = await db
+            .select()
+            .from(items)
+            .where(gt(items.initialQuantity, 0))
+            .orderBy(items.createdAt);
+
+        return reply.send(availableItems);
     });
 
     // POST /admin/items — create a new item

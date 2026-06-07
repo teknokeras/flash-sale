@@ -3,6 +3,7 @@ import fastifyJwt from "@fastify/jwt";
 import fastifyRedis from "@fastify/redis";
 import fastifySensible from "@fastify/sensible";
 import { purchaseRoutes } from "./routes/purchase.js";
+import { purchaseQueryRoutes } from "./routes/purchase-query.js";
 
 const JWT_SECRET = process.env["JWT_SECRET"];
 const REDIS_URL = process.env["REDIS_URL"];
@@ -36,6 +37,10 @@ export function buildApp() {
     app.get("/health", async () => ({ status: "ok", service: "purchase-service" }));
 
     app.register(purchaseRoutes, { prefix: "/purchase" });
+
+    // This catches the incoming "GET /" traffic forwarded by your proxy gateway!
+    // for some reason the gateway strips "/purchase" and just leave the "/" that reach at this point, so we need to register the purchaseRoutes at both "/" and "/purchase" to handle both cases.
+    app.register(purchaseQueryRoutes, { prefix: "/mine" });
 
     return app;
 }

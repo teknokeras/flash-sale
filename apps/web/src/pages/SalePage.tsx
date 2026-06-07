@@ -5,8 +5,11 @@ import { useCountdown } from '../hooks/useCountdown'
 import { useState } from 'react'
 
 export default function SalePage() {
-    const { isLoggedIn, role } = useAuth()
+    const userData = useAuth();
+    const { isLoggedIn, role, logout } = userData;
     const qc = useQueryClient()
+
+    console.log('Rendering SalePage - Auth State:', userData)
 
     // 1. Fetch data from active-sale endpoint
     const { data: rawSale, isLoading, error } = useQuery({
@@ -45,86 +48,128 @@ export default function SalePage() {
         },
     })
 
+    // Determine configuration properties dynamically based on authentication state state
+    const showTopPanel = !isLoggedIn || role === 'buyer'
+    const buttonText = isLoggedIn ? 'My Purchase' : 'Login'
+    const buttonHref = isLoggedIn ? '/my-purchase' : '/login'
+    const statusText = isLoggedIn ? 'Shopping Mode Active' : 'Guest Mode'
+
+    // Render loading state inside full layout frame to maintain UI structure
     if (isLoading) return <div style={s.center}>Loading sale...</div>
 
-    // ── FIXED: Relaxed safety guard check ──
     // If we have an ID, we have a valid sale entry to show, even if relations are lazy-loaded
     if (error || !sale || !sale.id) {
-        return <div style={s.center}>No active sale right now. Check back soon!</div>
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6' }}>
+                {showTopPanel && (
+                    <div style={s.topPanel}>
+                        <span style={s.panelWelcome}>Flash Sale Hub — {statusText}</span>
+                        <div style={s.rightActions}>
+                            <a href={buttonHref} style={s.myPurchaseBtn}>{buttonText}</a>
+                            {isLoggedIn && (
+                                <button onClick={logout} style={s.logoutBtn}>Logout</button>
+                            )}
+                        </div>
+                    </div>
+                )}
+                <div style={s.center}>No active sale right now. Check back soon!</div>
+            </div>
+        )
     }
 
     const price = sale.item ? `$${(sale.item.priceCents / 100).toFixed(2)}` : null
     const displayStatus = (sale.status || 'ACTIVE').toUpperCase()
 
     return (
-        <div style={s.page}>
-            <div style={s.card}>
-                {/* Status badge */}
-                <div style={{ ...s.badge, background: badgeColor(sale.status) }}>
-                    {displayStatus}
-                </div>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6' }}>
 
-                {/* Item / Sale Title Render Info Block */}
-                {sale.item ? (
-                    <>
-                        <h1 style={s.title}>{sale.item.name}</h1>
-                        <p style={s.desc}>{sale.item.description}</p>
-                        {price && <div style={s.price}>{price}</div>}
-                    </>
-                ) : (
-                    <>
-                        <h1 style={s.title}>{(sale as any).title || 'Flash Sale Event'}</h1>
-                        <p style={s.desc}>Item information is being finalized. Get ready!</p>
-                    </>
-                )}
-
-                {/* Countdown display logic */}
-                {!countdown.isOver && targetDate && (
-                    <div style={s.countdownBox}>
-                        <div style={s.countdownLabel}>
-                            {sale.status === 'upcoming' ? 'Starts in' : 'Ends in'}
-                        </div>
-                        <div style={s.countdown}>
-                            {countdown.days > 0 && <Unit n={countdown.days} label="d" />}
-                            <Unit n={countdown.hours} label="h" />
-                            <Unit n={countdown.minutes} label="m" />
-                            <Unit n={countdown.seconds} label="s" />
-                        </div>
-                    </div>
-                )}
-
-                {/* Inventory tracking */}
-                {sale.remainingQuantity !== undefined && sale.remainingQuantity !== null && (
-                    <div style={s.qty}>
-                        {sale.remainingQuantity} units left
-                    </div>
-                )}
-
-                {/* Conditional checkout button rendering matching base payload flags */}
-                {(sale.status === 'active' || !sale.status) && sale.item && (
-                    <>
-                        {!isLoggedIn || role !== 'buyer' ? (
-                            <p style={s.hint}>
-                                <a href="/login" style={s.link}>Log in</a> or{' '}
-                                <a href="/register" style={s.link}>register</a> to buy
-                            </p>
-                        ) : (
-                            <button
-                                style={s.buyBtn}
-                                onClick={() => { setPurchaseMsg(null); buy() }}
-                                disabled={isPending}
-                            >
-                                {isPending ? 'Processing...' : 'Buy Now'}
+            {/* ── TOP PANEL (Visible to Guests and logged-in Buyers) ── */}
+            {showTopPanel && (
+                <div style={s.topPanel}>
+                    <span style={s.panelWelcome}>{statusText}</span>
+                    <div style={s.rightActions}>
+                        <a href={buttonHref} style={s.myPurchaseBtn}>
+                            {buttonText}
+                        </a>
+                        {isLoggedIn && (
+                            <button onClick={logout} style={s.logoutBtn}>
+                                Logout
                             </button>
                         )}
-                    </>
-                )}
-
-                {purchaseMsg && (
-                    <div style={{ ...s.msg, background: purchaseMsg.type === 'ok' ? '#d1fae5' : '#fee2e2' }}>
-                        {purchaseMsg.text}
                     </div>
-                )}
+                </div>
+            )}
+
+            {/* Main Center Content Section */}
+            <div style={s.mainBody}>
+                <div style={s.card}>
+                    {/* Status badge */}
+                    <div style={{ ...s.badge, background: badgeColor(sale.status) }}>
+                        {displayStatus}
+                    </div>
+
+                    {/* Item / Sale Title Render Info Block */}
+                    {sale.item ? (
+                        <>
+                            <h1 style={s.title}>{sale.item.name}</h1>
+                            <p style={s.desc}>{sale.item.description}</p>
+                            {price && <div style={s.price}>{price}</div>}
+                        </>
+                    ) : (
+                        <>
+                            <h1 style={s.title}>{(sale as any).title || 'Flash Sale Event'}</h1>
+                            <p style={s.desc}>Item information is being finalized. Get ready!</p>
+                        </>
+                    )}
+
+                    {/* Countdown display logic */}
+                    {!countdown.isOver && targetDate && (
+                        <div style={s.countdownBox}>
+                            <div style={s.countdownLabel}>
+                                {sale.status === 'upcoming' ? 'Starts in' : 'Ends in'}
+                            </div>
+                            <div style={s.countdown}>
+                                {countdown.days > 0 && <Unit n={countdown.days} label="d" />}
+                                <Unit n={countdown.hours} label="h" />
+                                <Unit n={countdown.minutes} label="m" />
+                                <Unit n={countdown.seconds} label="s" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Inventory tracking */}
+                    {sale.remainingQuantity !== undefined && sale.remainingQuantity !== null && (
+                        <div style={s.qty}>
+                            {sale.remainingQuantity} units left
+                        </div>
+                    )}
+
+                    {/* Conditional checkout button rendering matching base payload flags */}
+                    {(sale.status === 'active' || !sale.status) && sale.item && (
+                        <>
+                            {!isLoggedIn || role !== 'buyer' ? (
+                                <p style={s.hint}>
+                                    <a href="/login" style={s.link}>Log in</a> or{' '}
+                                    <a href="/register" style={s.link}>register</a> to buy
+                                </p>
+                            ) : (
+                                <button
+                                    style={s.buyBtn}
+                                    onClick={() => { setPurchaseMsg(null); buy() }}
+                                    disabled={isPending}
+                                >
+                                    {isPending ? 'Processing...' : 'Buy Now'}
+                                </button>
+                            )}
+                        </>
+                    )}
+
+                    {purchaseMsg && (
+                        <div style={{ ...s.msg, background: purchaseMsg.type === 'ok' ? '#d1fae5' : '#fee2e2' }}>
+                            {purchaseMsg.text}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     )
@@ -146,8 +191,46 @@ function badgeColor(status?: string) {
 }
 
 const s: Record<string, React.CSSProperties> = {
-    page: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', padding: 16 },
-    center: { textAlign: 'center', marginTop: 80, fontSize: 18, color: '#6b7280' },
+    topPanel: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: '#ffffff',
+        padding: '14px 24px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        borderBottom: '1px solid #e5e7eb'
+    },
+    panelWelcome: { fontSize: '14px', fontWeight: 600, color: '#374151' },
+    rightActions: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px'
+    },
+    myPurchaseBtn: {
+        display: 'inline-block',
+        padding: '8px 16px',
+        background: '#111827',
+        color: '#ffffff',
+        textDecoration: 'none',
+        borderRadius: '8px',
+        fontSize: '13px',
+        fontWeight: 600,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+    },
+    logoutBtn: {
+        display: 'inline-block',
+        padding: '8px 16px',
+        background: '#ffffff',
+        color: '#dc2626',
+        border: '1px solid #fca5a5',
+        borderRadius: '8px',
+        fontSize: '13px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    },
+    mainBody: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 },
+    center: { textAlign: 'center', marginTop: 80, fontSize: 18, color: '#6b7280', width: '100%' },
     card: { background: '#fff', borderRadius: 16, padding: 40, maxWidth: 480, width: '100%', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', textAlign: 'center' },
     badge: { display: 'inline-block', color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: 1, padding: '4px 12px', borderRadius: 999, marginBottom: 20 },
     title: { fontSize: 28, fontWeight: 700, margin: '0 0 8px' },

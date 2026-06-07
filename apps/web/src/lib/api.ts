@@ -76,12 +76,22 @@ export const saleApi = {
 // ── Purchase Service ─────────────────────────────────────────
 
 export const purchaseApi = {
-    buy: (saleId: string) =>
-        apiFetch<{ message: string }>('/api/purchase/purchase', {
-            method: 'POST',
-            body: JSON.stringify({ saleId }),
-        }),
-}
+    buy: (saleId: string) => apiFetch<{ status: string; message: string }>('/api/purchase', {
+        method: 'POST',
+        body: JSON.stringify({ saleId }),
+    }),
+
+    // ── NEW METHOD ──
+    getMyPurchases: () => apiFetch<Array<{
+        orderId: string;
+        status: string;
+        createdAt: string;
+        saleId: string;
+        saleTitle: string | null;
+        itemName: string;
+        priceCents: number;
+    }>>('/api/purchase/mine'),
+};
 
 // ── Admin Service ─────────────────────────────────────────────
 
@@ -94,6 +104,7 @@ export const adminApi = {
     createItem: (body: { name: string; description: string; priceCents: number; initialQuantity: number }) =>
         apiFetch('/api/admin/admin/items', { method: 'POST', body: JSON.stringify(body) }),
     getItems: () => apiFetch<Item[]>('/api/admin/admin/items'),
+    getAvailableItems: () => apiFetch<Item[]>('/api/admin/admin/items/available'),
     createSale: (body: { startsAt: string; endsAt: string }) =>
         apiFetch('/api/admin/admin/sales', { method: 'POST', body: JSON.stringify(body) }),
     getSales: () => apiFetch<Sale[]>('/api/admin/admin/sales'),
