@@ -137,10 +137,6 @@ function TopPanel({ showTopPanel, buttonHref, buttonText, isLoggedIn, logout, st
     )
 }
 
-function badgeColor(status?: string) {
-    return status === 'active' ? '#10b981' : (status === 'upcoming' || status === 'scheduled') ? '#f59e0b' : '#10b981'
-}
-
 const s: Record<string, React.CSSProperties> = {
     topPanel: {
         display: 'flex',

@@ -9,7 +9,7 @@ describe('Auth & API Utilities Suite', () => {
 
     beforeEach(() => {
         localStorage.clear();
-        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
     });
 
     describe('LocalStorage State Helpers', () => {
@@ -42,7 +42,9 @@ describe('Auth & API Utilities Suite', () => {
                 status,
                 json: async () => data,
             };
-            return vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse));
+            const fetchMock = vi.fn().mockResolvedValue(mockResponse);
+            vi.stubGlobal('fetch', fetchMock);
+            return fetchMock; // ← return the fn, not stubGlobal's return value
         }
 
         it('should implicitly append authorization headers if a token exists', async () => {
