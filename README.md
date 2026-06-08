@@ -251,6 +251,24 @@ FIFO queues support `MessageDeduplicationId`. Setting this to `user_id + sale_id
 
 ---
 
+## Local Development Setup
+
+### Prerequisites
+* **pnpm:** Version 10.33.0
+* **Docker & Docker Compose**
+
+### Step-by-Step Guide
+1. **Clone the repository:** `git clone <repository-url>`
+2. **Install dependencies:** `pnpm install`
+3. **Start the environment:** `docker-compose up --build`
+4. **Access Admin:** Go to `http://localhost:5173/admin`
+5. **Login:** Use email `admin@local.dev` and password `admin_secret`
+6. **Create Item:** Navigate to "Items" and create a new inventory item.
+7. **Create Flash Sale:** Configure the item, price, title, and timing in the "Flash Sales" section.
+8. **Logout:** Clear your session to prepare for testing as a user.
+9. **Register:** Go to `http://localhost:5173/register` and create a standard buyer account.
+10. **Purchase:** Once the sale is active, go to `http://localhost:5173` and click the buy button.
+
 ## Database Responsibilities
 
 To summarize the division of labor clearly:
