@@ -139,3 +139,5 @@ process.on("SIGTERM", () => {
     log.info("SIGTERM received — shutting down");
     process.exit(0);
 });
+
+export { processMessage, poll }; // Exported for testing purposes
